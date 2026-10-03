@@ -1,33 +1,58 @@
 from __future__ import annotations
 
-from typing import Any
+from a2a.server.agent_execution.agent_executor import AgentExecutor
+from a2a.server.agent_execution.context import RequestContext
+from a2a.server.events.event_queue import EventQueue
+from a2a.server.tasks.task_updater import TaskUpdater
+from a2a.types import Part, Task, TaskState, TaskStatus
 
 from .lemonade_client import LemonadeClient
 
 
-def text_from_message(message: Any) -> str:
-    """Extract text conservatively from an A2A SDK message-like object.
-
-    A2A SDK types are intentionally isolated at the server boundary while the
-    project validates v1 API stability.
-    """
-    parts = getattr(message, "parts", None) or []
-    values: list[str] = []
-    for part in parts:
-        root = getattr(part, "root", part)
-        text = getattr(root, "text", None)
-        if isinstance(text, str):
-            values.append(text)
-    return "\n".join(values)
-
-
-class LemonadeAgent:
-    """Protocol-neutral execution core used by the A2A adapter."""
+class LemonadeAgentExecutor(AgentExecutor):
+    """Execute A2A text tasks using a Lemonade OpenAI-compatible endpoint."""
 
     def __init__(self, client: LemonadeClient) -> None:
         self.client = client
 
-    async def invoke(self, user_text: str) -> str:
-        if not user_text.strip():
-            raise ValueError("A2A message did not contain a non-empty text part")
-        return await self.client.chat([{"role": "user", "content": user_text}])
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        message = context.message
+        task_id = context.task_id
+        context_id = context.context_id
+        if message is None or not task_id or not context_id:
+            raise ValueError("A2A request is missing message/task/context identifiers")
+
+        query = context.get_user_input()
+        if not query.strip():
+            raise ValueError("A2A request did not contain non-empty text input")
+
+        await event_queue.enqueue_event(
+            Task(
+                id=task_id,
+                context_id=context_id,
+                status=TaskStatus(state=TaskState.TASK_STATE_SUBMITTED),
+                history=[message],
+            )
+        )
+        updater = TaskUpdater(
+            event_queue=event_queue,
+            task_id=task_id,
+            context_id=context_id,
+        )
+        await updater.start_work()
+
+        answer = await self.client.chat([{"role": "user", "content": query}])
+        await updater.add_artifact(
+            parts=[Part(text=answer)],
+            name="lemonade-response",
+            last_chunk=True,
+        )
+        await updater.complete()
+
+    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        updater = TaskUpdater(
+            event_queue=event_queue,
+            task_id=context.task_id or "",
+            context_id=context.context_id or "",
+        )
+        await updater.cancel()
