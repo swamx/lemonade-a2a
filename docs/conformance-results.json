@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "a2a_protocol": "1.0",
+  "implementation_commit": null,
+  "tck_commit": null,
+  "itk_commit": null,
+  "status": "not-run",
+  "transports": {
+    "jsonrpc": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    "http_json": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "notes": [
+    "Populate only from reproducible official TCK/ITK runs.",
+    "A2A patch specification releases negotiate wire protocol version 1.0."
+  ]
+}
