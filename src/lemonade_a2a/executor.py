@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from a2a.server.agent_execution.agent_executor import AgentExecutor
 from a2a.server.agent_execution.context import RequestContext
 from a2a.server.events.event_queue import EventQueue
@@ -41,12 +43,26 @@ class LemonadeAgentExecutor(AgentExecutor):
         )
         await updater.start_work()
 
-        answer = await self.client.chat([{"role": "user", "content": query}])
+        artifact_id = uuid.uuid4().hex
+        emitted = False
+        async for text in self.client.stream([{"role": "user", "content": query}]):
+            await updater.add_artifact(
+                parts=[Part(text=text)],
+                artifact_id=artifact_id,
+                name="lemonade-response",
+                append=emitted,
+                last_chunk=False,
+            )
+            emitted = True
+
         await updater.add_artifact(
-            parts=[Part(text=answer)],
+            parts=[Part(text="")],
+            artifact_id=artifact_id,
             name="lemonade-response",
+            append=emitted,
             last_chunk=True,
         )
+
         await updater.complete()
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:

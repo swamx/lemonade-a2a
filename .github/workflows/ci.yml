@@ -8,6 +8,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
@@ -16,7 +17,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: pip install -e '.[dev]'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
       - name: Ruff
         run: ruff check .
       - name: Tests

@@ -22,8 +22,8 @@
 
 ## Phase 2 — Streaming and lifecycle
 
-- [ ] Lemonade SSE parser.
-- [ ] A2A streaming event bridge.
+- [x] Lemonade SSE parser.
+- [x] A2A streaming event bridge.
 - [ ] cancellation propagation.
 - [ ] bounded queues/backpressure.
 - [ ] timeout and failure mapping.

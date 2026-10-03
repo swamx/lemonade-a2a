@@ -7,9 +7,10 @@ from lemonade_a2a.executor import LemonadeAgentExecutor
 
 
 class FakeClient:
-    async def chat(self, messages):
+    async def stream(self, messages):
         assert messages == [{"role": "user", "content": "hello"}]
-        return "hello from Lemonade"
+        yield "hello "
+        yield "from Lemonade"
 
 
 class FakeQueue:
@@ -37,5 +38,11 @@ async def test_executor_emits_task_and_completion_events() -> None:
 
     await LemonadeAgentExecutor(FakeClient()).execute(context, queue)
 
+    artifact_events = [event for event in queue.events if getattr(event, "artifact", None)]
+
     assert len(queue.events) >= 3
     assert queue.events[0].id == "t1"
+    assert len(artifact_events) == 3
+    assert len({event.artifact.artifact_id for event in artifact_events}) == 1
+    assert [event.append for event in artifact_events] == [False, True, True]
+    assert artifact_events[-1].last_chunk is True

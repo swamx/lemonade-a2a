@@ -7,7 +7,7 @@ def test_agent_card_uses_public_url_and_local_skill() -> None:
     card = build_agent_card(settings)
 
     assert card["url"] == "http://localhost:9000"
-    assert card["capabilities"]["streaming"] is False
+    assert card["capabilities"]["streaming"] is True
     assert card["skills"][0]["id"] == "local-chat"
     assert "Lemonade" in card["skills"][0]["description"]
 

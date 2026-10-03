@@ -25,7 +25,7 @@ def build_agent_card(settings: Settings) -> AgentCard:
         name=settings.agent_name,
         description=settings.agent_description,
         version="0.1.0",
-        capabilities=AgentCapabilities(streaming=False, push_notifications=False),
+        capabilities=AgentCapabilities(streaming=True, push_notifications=False),
         default_input_modes=["text"],
         default_output_modes=["text", "task-status"],
         skills=[
