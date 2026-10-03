@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 from a2a.server.agent_execution.agent_executor import AgentExecutor
@@ -12,10 +13,17 @@ from .lemonade_client import LemonadeClient
 
 
 class LemonadeAgentExecutor(AgentExecutor):
-    """Execute A2A text tasks using a Lemonade OpenAI-compatible endpoint."""
+    """Execute A2A text tasks using a Lemonade OpenAI-compatible endpoint.
+
+    Active inference coroutines are tracked by A2A task id so a protocol-level
+    cancel request can stop the local streaming request instead of only changing
+    task metadata.
+    """
 
     def __init__(self, client: LemonadeClient) -> None:
         self.client = client
+        self._active: dict[str, asyncio.Task[None]] = {}
+        self._active_lock = asyncio.Lock()
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         message = context.message
@@ -24,51 +32,71 @@ class LemonadeAgentExecutor(AgentExecutor):
         if message is None or not task_id or not context_id:
             raise ValueError("A2A request is missing message/task/context identifiers")
 
-        query = context.get_user_input()
-        if not query.strip():
-            raise ValueError("A2A request did not contain non-empty text input")
+        current = asyncio.current_task()
+        if current is not None:
+            async with self._active_lock:
+                self._active[task_id] = current
 
-        await event_queue.enqueue_event(
-            Task(
-                id=task_id,
-                context_id=context_id,
-                status=TaskStatus(state=TaskState.TASK_STATE_SUBMITTED),
-                history=[message],
+        try:
+            query = context.get_user_input()
+            if not query.strip():
+                raise ValueError("A2A request did not contain non-empty text input")
+
+            await event_queue.enqueue_event(
+                Task(
+                    id=task_id,
+                    context_id=context_id,
+                    status=TaskStatus(state=TaskState.TASK_STATE_SUBMITTED),
+                    history=[message],
+                )
             )
-        )
-        updater = TaskUpdater(
-            event_queue=event_queue,
-            task_id=task_id,
-            context_id=context_id,
-        )
-        await updater.start_work()
+            updater = TaskUpdater(
+                event_queue=event_queue,
+                task_id=task_id,
+                context_id=context_id,
+            )
+            await updater.start_work()
 
-        artifact_id = uuid.uuid4().hex
-        emitted = False
-        async for text in self.client.stream([{"role": "user", "content": query}]):
+            artifact_id = uuid.uuid4().hex
+            emitted = False
+            async for text in self.client.stream([{"role": "user", "content": query}]):
+                await updater.add_artifact(
+                    parts=[Part(text=text)],
+                    artifact_id=artifact_id,
+                    name="lemonade-response",
+                    append=emitted,
+                    last_chunk=False,
+                )
+                emitted = True
+
             await updater.add_artifact(
-                parts=[Part(text=text)],
+                parts=[Part(text="")],
                 artifact_id=artifact_id,
                 name="lemonade-response",
                 append=emitted,
-                last_chunk=False,
+                last_chunk=True,
             )
-            emitted = True
-
-        await updater.add_artifact(
-            parts=[Part(text="")],
-            artifact_id=artifact_id,
-            name="lemonade-response",
-            append=emitted,
-            last_chunk=True,
-        )
-
-        await updater.complete()
+            await updater.complete()
+        except asyncio.CancelledError:
+            # Cancellation is a normal A2A lifecycle event. The cancel() method
+            # publishes the protocol state; execute() only stops backend work.
+            raise
+        finally:
+            async with self._active_lock:
+                if self._active.get(task_id) is current:
+                    self._active.pop(task_id, None)
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        task_id = context.task_id or ""
         updater = TaskUpdater(
             event_queue=event_queue,
-            task_id=context.task_id or "",
+            task_id=task_id,
             context_id=context.context_id or "",
         )
+
+        async with self._active_lock:
+            running = self._active.get(task_id)
+        if running is not None and not running.done():
+            running.cancel()
+
         await updater.cancel()
