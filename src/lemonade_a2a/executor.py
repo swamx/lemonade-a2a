@@ -41,12 +41,34 @@ class LemonadeAgentExecutor(AgentExecutor):
         )
         await updater.start_work()
 
-        answer = await self.client.chat([{"role": "user", "content": query}])
-        await updater.add_artifact(
-            parts=[Part(text=answer)],
-            name="lemonade-response",
-            last_chunk=True,
-        )
+        emitted = False
+        async for text in self.client.stream([{"role": "user", "content": query}]):
+            emitted = True
+            await updater.add_artifact(
+                parts=[Part(text=text)],
+                name="lemonade-response",
+                append=True,
+                last_chunk=False,
+            )
+
+        if not emitted:
+            # Some backends/configurations may not provide streaming deltas.
+            answer = await self.client.chat([{"role": "user", "content": query}])
+            await updater.add_artifact(
+                parts=[Part(text=answer)],
+                name="lemonade-response",
+                append=False,
+                last_chunk=True,
+            )
+        else:
+            # Close the streamed artifact without inventing additional model text.
+            await updater.add_artifact(
+                parts=[Part(text="")],
+                name="lemonade-response",
+                append=True,
+                last_chunk=True,
+            )
+
         await updater.complete()
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
