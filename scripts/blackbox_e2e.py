@@ -8,7 +8,6 @@ import uuid
 
 import httpx
 
-
 A2A_BASE = os.getenv("A2A_BASE_URL", "http://127.0.0.1:9000")
 EXPECTED = os.getenv("EXPECTED_TEXT", "MOCK_LEMONADE_OK")
 
@@ -52,11 +51,11 @@ async def main() -> None:
         payload = {
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),
-            "method": "message/send",
+            "method": "SendMessage",
             "params": {
                 "message": {
                     "messageId": str(uuid.uuid4()),
-                    "role": "user",
+                    "role": "ROLE_USER",
                     "parts": [{"kind": "text", "text": "Return the deterministic response."}],
                 }
             },

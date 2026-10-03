@@ -35,11 +35,11 @@ async def check(base_url: str) -> None:
         payload = {
             "jsonrpc": "2.0",
             "id": request_id,
-            "method": "message/send",
+            "method": "SendMessage",
             "params": {
                 "message": {
                     "messageId": message_id,
-                    "role": "user",
+                    "role": "ROLE_USER",
                     "parts": [{"kind": "text", "text": "Reply with: lemonade-a2a-ok"}],
                 }
             },
