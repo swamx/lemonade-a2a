@@ -32,13 +32,12 @@ class LemonadeClient:
         if self.model:
             payload["model"] = self.model
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            async with client.stream(
-                "POST", f"{self.base_url}/chat/completions", json=payload
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        value = line[6:]
-                        if value != "[DONE]":
-                            yield value
+        async with httpx.AsyncClient(timeout=self.timeout) as client, client.stream(
+            "POST", f"{self.base_url}/chat/completions", json=payload
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    value = line[6:]
+                    if value != "[DONE]":
+                        yield value

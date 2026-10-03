@@ -18,7 +18,7 @@ def build_agent_card(settings: Settings) -> dict[str, Any]:
         "version": "0.1.0",
         "defaultInputModes": ["text/plain"],
         "defaultOutputModes": ["text/plain"],
-        "capabilities": {"streaming": True},
+        "capabilities": {"streaming": False},
         "skills": [
             {
                 "id": "local-chat",

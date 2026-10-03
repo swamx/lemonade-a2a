@@ -100,7 +100,7 @@ python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -e .
 
-export LEMONADE_BASE_URL=http://localhost:8000/v1
+export LEMONADE_BASE_URL=http://localhost:13305/v1
 export LEMONADE_MODEL=your-model
 lemonade-a2a
 ```

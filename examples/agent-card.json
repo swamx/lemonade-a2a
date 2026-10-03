@@ -6,7 +6,7 @@
   "defaultInputModes": ["text/plain"],
   "defaultOutputModes": ["text/plain"],
   "capabilities": {
-    "streaming": true
+    "streaming": false
   },
   "skills": [
     {

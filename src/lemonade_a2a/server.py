@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI
-
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import (
     add_a2a_routes_to_fastapi,
@@ -13,6 +11,7 @@ from a2a.server.routes import (
 )
 from a2a.server.tasks.inmemory_task_store import InMemoryTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
+from fastapi import FastAPI
 
 from .config import Settings
 from .executor import LemonadeAgentExecutor
