@@ -77,10 +77,6 @@ class LemonadeAgentExecutor(AgentExecutor):
                 last_chunk=True,
             )
             await updater.complete()
-        except asyncio.CancelledError:
-            # Cancellation is a normal A2A lifecycle event. The cancel() method
-            # publishes the protocol state; execute() only stops backend work.
-            raise
         finally:
             async with self._active_lock:
                 if self._active.get(task_id) is current:

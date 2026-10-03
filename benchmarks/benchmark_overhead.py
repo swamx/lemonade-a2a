@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import statistics
 import time
 import uuid
@@ -32,11 +33,11 @@ async def run(args: argparse.Namespace) -> None:
     a2a_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
-        "method": "message/send",
+        "method": "SendMessage",
         "params": {
             "message": {
                 "messageId": str(uuid.uuid4()),
-                "role": "user",
+                "role": "ROLE_USER",
                 "parts": [{"kind": "text", "text": args.prompt}],
             }
         },
@@ -64,14 +65,23 @@ async def run(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--direct-url", default="http://127.0.0.1:8000/v1/chat/completions")
+    parser.add_argument("--direct-url", default="http://127.0.0.1:13305/v1/chat/completions")
     parser.add_argument("--a2a-url", default="http://127.0.0.1:9000/a2a/jsonrpc")
-    parser.add_argument("--model", default="")
+    parser.add_argument(
+        "--model",
+        default=os.getenv("LEMONADE_MODEL", ""),
+        help="Model ID; must match LEMONADE_MODEL used by the running A2A adapter.",
+    )
     parser.add_argument("--prompt", default="Reply with exactly: OK")
     parser.add_argument("--warmup", type=int, default=2)
     parser.add_argument("--runs", type=int, default=10)
     parser.add_argument("--timeout", type=float, default=180.0)
-    asyncio.run(run(parser.parse_args()))
+    args = parser.parse_args()
+    if not args.model:
+        parser.error("--model is required unless LEMONADE_MODEL is set")
+    if args.runs < 1 or args.warmup < 0:
+        parser.error("--runs must be positive and --warmup must be non-negative")
+    asyncio.run(run(args))
 
 
 if __name__ == "__main__":
