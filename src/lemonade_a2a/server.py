@@ -2,50 +2,94 @@ from __future__ import annotations
 
 import logging
 
-from .agent_card import build_agent_card
+from fastapi import FastAPI
+
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.routes import (
+    add_a2a_routes_to_fastapi,
+    create_agent_card_routes,
+    create_jsonrpc_routes,
+    create_rest_routes,
+)
+from a2a.server.tasks.inmemory_task_store import InMemoryTaskStore
+from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
+
 from .config import Settings
+from .executor import LemonadeAgentExecutor
+from .lemonade_client import LemonadeClient
 
 LOG = logging.getLogger("lemonade_a2a")
 
 
-def create_app():
-    """Create the A2A application using the installed official SDK.
-
-    A2A SDK APIs have evolved quickly. The concrete binding is intentionally
-    kept in this one module so protocol-version changes do not leak into the
-    Lemonade client/execution core.
-    """
-    settings = Settings.from_env()
-    card = build_agent_card(settings)
-
-    try:
-        from a2a.server.apps import A2AStarletteApplication
-        from a2a.types import AgentCapabilities, AgentCard, AgentSkill
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("Install project dependencies with: pip install -e .") from exc
-
-    skills = [AgentSkill(**skill) for skill in card["skills"]]
-    agent_card = AgentCard(
-        name=card["name"],
-        description=card["description"],
-        url=card["url"],
-        version=card["version"],
-        default_input_modes=card["defaultInputModes"],
-        default_output_modes=card["defaultOutputModes"],
-        capabilities=AgentCapabilities(streaming=True),
-        skills=skills,
+def build_agent_card(settings: Settings) -> AgentCard:
+    return AgentCard(
+        name=settings.agent_name,
+        description=settings.agent_description,
+        version="0.1.0",
+        capabilities=AgentCapabilities(streaming=False, push_notifications=False),
+        default_input_modes=["text"],
+        default_output_modes=["text", "task-status"],
+        skills=[
+            AgentSkill(
+                id="local-chat",
+                name="Local AI",
+                description="Language-model inference executed by Lemonade on local hardware.",
+                tags=["local-ai", "lemonade", "amd"],
+                examples=["Explain why local inference is useful."],
+                input_modes=["text"],
+                output_modes=["text", "task-status"],
+            )
+        ],
+        supported_interfaces=[
+            AgentInterface(
+                protocol_binding="JSONRPC",
+                protocol_version="1.0",
+                url=f"{settings.public_url}/a2a/jsonrpc",
+            ),
+            AgentInterface(
+                protocol_binding="HTTP+JSON",
+                protocol_version="1.0",
+                url=f"{settings.public_url}/a2a/rest",
+            ),
+        ],
     )
 
-    # The next implementation milestone wires the official SDK request handler
-    # and AgentExecutor to LemonadeAgent. Keeping startup explicit prevents this
-    # pre-alpha scaffold from pretending unsupported task semantics are complete.
-    try:
-        return A2AStarletteApplication(agent_card=agent_card).build()
-    except TypeError as exc:
-        raise RuntimeError(
-            "The installed a2a-sdk server API differs from this pre-alpha binding. "
-            "See docs/roadmap.md for the version-pinning milestone."
-        ) from exc
+
+def create_app() -> FastAPI:
+    settings = Settings.from_env()
+    agent_card = build_agent_card(settings)
+    client = LemonadeClient(settings.lemonade_base_url, settings.model)
+    request_handler = DefaultRequestHandler(
+        agent_executor=LemonadeAgentExecutor(client),
+        task_store=InMemoryTaskStore(),
+        agent_card=agent_card,
+    )
+
+    app = FastAPI(
+        title="Lemonade A2A",
+        description="A2A v1 protocol surface for local AMD Lemonade inference.",
+        version="0.1.0",
+    )
+    add_a2a_routes_to_fastapi(
+        app,
+        agent_card_routes=create_agent_card_routes(agent_card=agent_card),
+        jsonrpc_routes=create_jsonrpc_routes(
+            request_handler=request_handler,
+            rpc_url="/a2a/jsonrpc",
+            enable_v0_3_compat=False,
+        ),
+        rest_routes=create_rest_routes(
+            request_handler=request_handler,
+            path_prefix="/a2a/rest",
+            enable_v0_3_compat=False,
+        ),
+    )
+
+    @app.get("/healthz", include_in_schema=False)
+    async def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
+    return app
 
 
 def main() -> None:
