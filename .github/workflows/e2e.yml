@@ -1,0 +1,46 @@
+name: E2E
+
+on:
+  push:
+    branches: [main, test/mock-lemonade-e2e]
+  pull_request:
+
+jobs:
+  blackbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Unit-level deterministic backend tests
+        run: pytest -q tests/test_mock_lemonade_e2e.py
+      - name: Start mock Lemonade
+        run: |
+          python -m uvicorn tests.mock_lemonade:app --host 127.0.0.1 --port 13305 > /tmp/mock-lemonade.log 2>&1 &
+          echo $! > /tmp/mock-lemonade.pid
+      - name: Start Lemonade A2A
+        env:
+          LEMONADE_BASE_URL: http://127.0.0.1:13305/v1
+          LEMONADE_A2A_PUBLIC_URL: http://127.0.0.1:9000
+        run: |
+          lemonade-a2a > /tmp/lemonade-a2a.log 2>&1 &
+          echo $! > /tmp/lemonade-a2a.pid
+      - name: Black-box A2A smoke test
+        run: python scripts/blackbox_e2e.py
+      - name: Print service logs on failure
+        if: failure()
+        run: |
+          echo '--- Mock Lemonade ---'
+          cat /tmp/mock-lemonade.log || true
+          echo '--- Lemonade A2A ---'
+          cat /tmp/lemonade-a2a.log || true
+      - name: Stop services
+        if: always()
+        run: |
+          kill $(cat /tmp/lemonade-a2a.pid) 2>/dev/null || true
+          kill $(cat /tmp/mock-lemonade.pid) 2>/dev/null || true

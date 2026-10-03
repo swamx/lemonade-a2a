@@ -19,11 +19,11 @@ async def main() -> None:
     payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
-        "method": "message/send",
+        "method": "SendMessage",
         "params": {
             "message": {
                 "messageId": str(uuid.uuid4()),
-                "role": "user",
+                "role": "ROLE_USER",
                 "parts": [{"kind": "text", "text": "In one sentence, what is AMD Lemonade?"}],
             }
         },
