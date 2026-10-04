@@ -6,20 +6,7 @@ import json
 import uuid
 
 import httpx
-
-
-def collect_text(value) -> str:
-    pieces: list[str] = []
-    if isinstance(value, dict):
-        text = value.get("text")
-        if isinstance(text, str):
-            pieces.append(text)
-        for child in value.values():
-            pieces.append(collect_text(child))
-    elif isinstance(value, list):
-        for child in value:
-            pieces.append(collect_text(child))
-    return "".join(pieces)
+from a2a_util import artifact_text
 
 
 async def wait_ready(client: httpx.AsyncClient, url: str, attempts: int = 120) -> None:
@@ -66,7 +53,7 @@ async def main(args: argparse.Namespace) -> None:
                 "message": {
                     "messageId": str(uuid.uuid4()),
                     "role": "ROLE_USER",
-                    "parts": [{"kind": "text", "text": args.prompt}],
+                    "parts": [{"text": args.prompt}],
                 }
             },
         }
@@ -79,7 +66,7 @@ async def main(args: argparse.Namespace) -> None:
         body = response.json()
         if "error" in body:
             raise RuntimeError(json.dumps(body["error"], indent=2))
-        text = collect_text(body.get("result")).strip()
+        text = artifact_text(body.get("result")).strip()
         if not text:
             raise AssertionError(f"A2A returned no model text: {body!r}")
         print(f"PASS: real Lemonade -> A2A artifact ({len(text)} chars)")
@@ -90,7 +77,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Validate Lemonade A2A against a real Lemonade server"
     )
-    parser.add_argument("--a2a", default="http://127.0.0.1:9000")
+    parser.add_argument("--a2a", default="http://127.0.0.1:9100")
     parser.add_argument("--lemonade", default="http://127.0.0.1:13305/v1")
     parser.add_argument("--model", default="")
     parser.add_argument("--prompt", default="Reply in one short sentence: what is local AI?")

@@ -19,6 +19,7 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 pytest
 ruff check .
+ruff format --check .
 ```
 
 Windows PowerShell:
@@ -29,7 +30,20 @@ python -m venv .venv
 pip install -e ".[dev]"
 pytest
 ruff check .
+ruff format --check .
 ```
+
+CI runs exactly these (Python 3.11-3.13), plus a mock-Lemonade black-box job.
+
+## Test layers
+
+| Layer | Command | Needs |
+|---|---|---|
+| Unit / in-process | `pytest` | nothing |
+| Black-box vs mock Lemonade | `python scripts/blackbox_e2e.py` | mock (`tests/mock_lemonade.py`) and adapter running |
+| Smoke conformance | `python scripts/check_a2a_conformance.py` | adapter running |
+| Real Lemonade | `python scripts/real_lemonade_e2e.py` | real Lemonade + model, see [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) |
+| Benchmarks | `python benchmarks/benchmark_evidence.py` | real Lemonade + adapter, see [docs/benchmarks.md](docs/benchmarks.md) |
 
 ## Pull requests
 

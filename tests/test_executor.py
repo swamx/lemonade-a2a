@@ -1,8 +1,9 @@
 from types import SimpleNamespace
 
+import httpx
 import pytest
-from a2a.types import Message, Part, Role
-from a2a.utils.errors import ContentTypeNotSupportedError
+from a2a.types import Message, Part, Role, TaskState
+from a2a.utils.errors import ContentTypeNotSupportedError, InvalidParamsError
 
 from lemonade_a2a.executor import LemonadeAgentExecutor
 
@@ -64,3 +65,66 @@ async def test_executor_rejects_non_text_parts() -> None:
 
     with pytest.raises(ContentTypeNotSupportedError):
         await LemonadeAgentExecutor(FakeClient()).execute(context, FakeQueue())
+
+
+def _context(text: str = "hello"):
+    return SimpleNamespace(
+        message=Message(message_id="m1", role=Role.ROLE_USER, parts=[Part(text=text)]),
+        task_id="t1",
+        context_id="c1",
+        get_user_input=lambda: text,
+    )
+
+
+def _final_state(queue: FakeQueue):
+    statuses = [e.status.state for e in queue.events if hasattr(e, "status")]
+    return statuses[-1]
+
+
+class FailingClient:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    async def stream(self, messages):
+        raise self.exc
+        yield  # pragma: no cover - makes this an async generator
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (httpx.ConnectError("refused"), "unavailable"),
+        (httpx.ReadTimeout("slow"), "in time"),
+        (
+            httpx.HTTPStatusError(
+                "bad", request=httpx.Request("POST", "http://x"), response=httpx.Response(404)
+            ),
+            "HTTP 404",
+        ),
+    ],
+)
+async def test_backend_errors_fail_the_task_without_leaking_details(exc, expected) -> None:
+    queue = FakeQueue()
+
+    await LemonadeAgentExecutor(FailingClient(exc)).execute(_context(), queue)
+
+    assert _final_state(queue) == TaskState.TASK_STATE_FAILED
+    text = "".join(
+        part.text
+        for e in queue.events
+        if hasattr(e, "status") and e.status.HasField("message")
+        for part in e.status.message.parts
+    )
+    assert expected in text
+    assert "refused" not in text and "slow" not in text
+
+
+@pytest.mark.asyncio
+async def test_empty_and_oversized_input_are_invalid_params() -> None:
+    executor = LemonadeAgentExecutor(FakeClient(), max_input_chars=5)
+
+    with pytest.raises(InvalidParamsError):
+        await executor.execute(_context("   "), FakeQueue())
+    with pytest.raises(InvalidParamsError):
+        await executor.execute(_context("too long"), FakeQueue())

@@ -40,7 +40,7 @@ async def check(base_url: str) -> None:
                 "message": {
                     "messageId": message_id,
                     "role": "ROLE_USER",
-                    "parts": [{"kind": "text", "text": "Reply with: lemonade-a2a-ok"}],
+                    "parts": [{"text": "Reply with: lemonade-a2a-ok"}],
                 }
             },
         }
@@ -56,7 +56,7 @@ async def check(base_url: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:9000")
+    parser.add_argument("--base-url", default="http://127.0.0.1:9100")
     args = parser.parse_args()
     asyncio.run(check(args.base_url))
 

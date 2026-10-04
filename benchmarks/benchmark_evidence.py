@@ -220,7 +220,7 @@ def to_markdown(report: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--direct-url", default="http://127.0.0.1:13305/v1/chat/completions")
-    parser.add_argument("--a2a-url", default="http://127.0.0.1:9000")
+    parser.add_argument("--a2a-url", default="http://127.0.0.1:9100")
     parser.add_argument("--model", default=os.getenv("LEMONADE_MODEL", ""))
     parser.add_argument("--prompt", default="Explain local AI in two sentences.")
     parser.add_argument("--cancel-prompt", default="Write a long essay about local AI.")

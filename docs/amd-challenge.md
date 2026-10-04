@@ -115,6 +115,15 @@ Agent capabilities can be paired with Lemonade models and local AMD compute to o
 
 These remain optional extensions. The core contribution is standards-compliant A2A interoperability for Lemonade.
 
+## Evidence so far
+
+- A real Lemonade 2026.40.0 + llama.cpp (GPU and CPU) run passes the A2A end-to-end validator.
+- Measured adapter overhead on that setup: about +5 ms (GPU) and +11 ms (CPU) time-to-first-token, with unchanged streaming throughput and working cancellation.
+- Adapter footprint: about 69 MB RSS and near-zero idle CPU.
+- Not yet demonstrated: the official A2A TCK/ITK results, NPU/ROCm backends, concurrent load, or a cross-machine demo.
+
+Details and caveats: [benchmarks.md](benchmarks.md).
+
 ## Success criteria
 
 A strong challenge submission should demonstrate:

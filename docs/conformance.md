@@ -18,6 +18,8 @@ This suite is intentionally small and is not presented as protocol certification
 
 ### 2. Official A2A TCK
 
+> **Status:** not yet run. [conformance-results.json](conformance-results.json) is the placeholder (`"status": "not-run"`). Several adapter behaviors (base-URL routes, 409 on non-cancelable tasks, `application/json` error bodies, non-text part rejection) were changed in response to TCK expectations, but no pass/fail matrix is recorded yet.
+
 The official `a2aproject/a2a-tck` is the authoritative external conformance gate. Challenge and release reports must record:
 
 - TCK repository revision;

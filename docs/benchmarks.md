@@ -15,7 +15,7 @@
 ```bash
 # 1. Lemonade running with a model loaded, then the adapter on the same model
 export LEMONADE_MODEL=<model-id>
-lemonade-a2a &
+lemonade-a2a &          # listens on :9100
 
 # 2. Benchmark (writes benchmark-report.json and prints a Markdown table)
 pip install psutil   # optional: adapter memory/CPU
@@ -72,4 +72,4 @@ Add rows below as further runs are collected:
 
 - **Per-request HTTP client cost.** `LemonadeClient` created a new `httpx.AsyncClient` per request. Against the mock this added ~350 ms to TTFT (and to every non-streaming call) on Windows because each client builds a fresh SSL context. The adapter now reuses one pooled client; warm adapter TTFT overhead against the mock fell from ~360 ms to ~10 ms.
 
-- **Port clash on a default install.** Lemonade Server's WebSocket listens on port 9000 (`lemonade status`), the adapter's default port. Run the adapter on another port (for example `LEMONADE_A2A_PORT=9100` with a matching `LEMONADE_A2A_PUBLIC_URL`) and pass `--a2a`/`--a2a-url` to the scripts.
+- **Port clash on a default install.** Lemonade Server's WebSocket listens on port 9000 (`lemonade status`), which was the adapter's original default. The adapter now defaults to 9100; if you change `LEMONADE_A2A_PORT`, set a matching `LEMONADE_A2A_PUBLIC_URL` and pass `--a2a`/`--a2a-url` to the scripts.

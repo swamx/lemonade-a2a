@@ -24,6 +24,19 @@ The safest default is:
 - bounded message/task sizes;
 - explicit opt-in before LAN/public exposure.
 
+## Implemented controls
+
+| Control | Status |
+|---|---|
+| Binds to loopback by default (`LEMONADE_A2A_HOST=127.0.0.1`) | Implemented |
+| Non-text parts rejected; no URL/file fetching | Implemented |
+| Input size limit (`LEMONADE_A2A_MAX_INPUT_CHARS`) | Implemented |
+| Backend timeout (`LEMONADE_TIMEOUT_SECONDS`) | Implemented |
+| Backend errors reduced to short client-safe messages | Implemented |
+| Authentication / TLS | Not implemented; terminate TLS and authenticate in front of the adapter before any non-loopback use |
+| Limits on concurrent tasks, task lifetime, stored history, streaming buffers | Not implemented (in-memory task store is unbounded) |
+| Prompt/content logging | Not performed; failure logs contain exception summaries only |
+
 ## Threats
 
 ### Prompt injection
