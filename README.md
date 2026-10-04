@@ -71,7 +71,7 @@ Application / Agent Framework
              ▼                 ▼                 ▼
             CPU               GPU               NPU
              │                 │                 │
-             └────────── Local AI System ────────┘
+             └────────── Local AI  ────────┘
 ```
 
 A2A should remain above Lemonade's model/backend router. It should not know whether inference is ultimately executed by ROCm, CUDA, Vulkan, Metal, CPU, Ryzen AI or another backend. This keeps the protocol surface aligned with Lemonade's vision: standard local AI APIs with hardware-specific optimization behind the server boundary.
@@ -172,7 +172,7 @@ Invalid values fail at startup. See [examples/](examples/) for an Agent Card and
 
 ## What this project is not
 
-Lemonade A2A is **not a new agent reasoning framework** and does not require special "System One" models such as CLM, LAYA or JEV. Model intelligence remains a Lemonade concern. The A2A layer is responsible for interoperability, lifecycle, streaming, discovery and policy—not inventing a second model-routing or reasoning stack.
+Lemonade A2A is **not a new agent reasoning framework**. Model intelligence remains a Lemonade concern. The A2A layer is responsible for interoperability, lifecycle, streaming, discovery and policy—not inventing a second model-routing or reasoning stack.
 
 If Lemonade later gains richer routing, model selection or scheduling capabilities, A2A should consume those capabilities through Lemonade rather than duplicate them here.
 
