@@ -38,3 +38,28 @@ def test_http_json_errors_use_application_json() -> None:
     )
 
     assert response.headers["content-type"].startswith("application/json")
+
+
+def test_not_cancelable_maps_to_409_and_rest_content_type() -> None:
+    from fastapi import FastAPI
+    from fastapi.responses import JSONResponse
+
+    from lemonade_a2a.server import normalize_rest_response
+
+    app = FastAPI()
+    app.middleware("http")(normalize_rest_response)
+
+    @app.post("/tasks/t1:cancel")
+    async def cancel() -> JSONResponse:
+        body = {"error": {"code": 400, "details": [{"reason": "TASK_NOT_CANCELABLE"}]}}
+        return JSONResponse(body, status_code=400, media_type="application/a2a+json")
+
+    @app.post("/tasks/t2:cancel")
+    async def other() -> JSONResponse:
+        return JSONResponse({"error": "bad"}, status_code=400)
+
+    client = TestClient(app)
+    response = client.post("/tasks/t1:cancel")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == 409
+    assert client.post("/tasks/t2:cancel").status_code == 400

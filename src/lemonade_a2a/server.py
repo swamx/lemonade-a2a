@@ -56,6 +56,41 @@ def build_agent_card(settings: Settings) -> AgentCard:
     )
 
 
+async def normalize_rest_response(request, call_next):
+    """Align HTTP+JSON responses with TCK expectations.
+
+    Maps TASK_NOT_CANCELABLE to HTTP 409 and serves errors as application/json.
+    """
+    response = await call_next(request)
+    path = request.url.path
+
+    if path.endswith(":cancel") and response.status_code == 400:
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        try:
+            payload = json.loads(body)
+            details = payload["error"]["details"]
+            not_cancelable = any(
+                isinstance(item, dict) and item.get("reason") == "TASK_NOT_CANCELABLE"
+                for item in details
+            )
+        except (ValueError, KeyError, TypeError):
+            payload, not_cancelable = None, False
+        if not_cancelable:
+            payload["error"]["code"] = 409
+            return JSONResponse(payload, status_code=409)
+        response = Response(
+            content=body,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+        )
+
+    if path.startswith(("/message:", "/tasks", "/extendedAgentCard", "/a2a/rest/")) and (
+        response.headers.get("content-type", "").startswith("application/a2a+json")
+    ):
+        response.headers["content-type"] = "application/json"
+    return response
+
+
 def create_app() -> FastAPI:
     settings = Settings.from_env()
     agent_card = build_agent_card(settings)
@@ -72,32 +107,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
 
-    @app.middleware("http")
-    async def normalize_rest_json_content_type(request, call_next):
-        response = await call_next(request)
-        path = request.url.path
-
-        if path.endswith(":cancel") and response.status_code == 400:
-            body = b"".join([chunk async for chunk in response.body_iterator])
-            try:
-                payload = json.loads(body)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                payload = None
-            details = (payload or {}).get("error", {}).get("details", [])
-            if any(item.get("reason") == "TASK_NOT_CANCELABLE" for item in details):
-                payload["error"]["code"] = 409
-                return JSONResponse(payload, status_code=409)
-            response = Response(
-                content=body,
-                status_code=response.status_code,
-                headers=dict(response.headers),
-            )
-
-        if path.startswith(("/message:", "/tasks", "/extendedAgentCard", "/a2a/rest/")) and response.headers.get(
-            "content-type", ""
-        ).startswith("application/a2a+json"):
-            response.headers["content-type"] = "application/json"
-        return response
+    app.middleware("http")(normalize_rest_response)
 
     add_a2a_routes_to_fastapi(
         app,
