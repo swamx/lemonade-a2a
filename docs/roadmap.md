@@ -16,7 +16,7 @@ _Last reviewed: 2026-10-04._ A checked box means the item is implemented **and**
 | Performance evidence | TTFT overhead roughly 5-15 ms; flat throughput under load (backend-bound); ~70 MB RSS, ~0% idle CPU |
 | Cancellation | Verified to stop real backend generation |
 | Resource bounds, auth, TLS, shutdown | Implemented (input, deadline, concurrency cap, bounded store, API key, TLS) |
-| ITK / cross-SDK interoperability | **Not run** |
+| Independent clients (Go-based A2A CLI, JS SDK, Inspector validators) | Pass on both bindings, mock and real Lemonade; ITK not applicable, .NET/Java/Go libraries not run; see [interoperability.md](interoperability.md) |
 | NPU / ROCm / non-llama.cpp engines | **Not measured** (no such hardware on the test machine) |
 | Stream backpressure, per-user isolation, rate limiting | **Not implemented** |
 | Native Lemonade integration | Not started (by design, see gates below) |
@@ -40,12 +40,16 @@ _Last reviewed: 2026-10-04._ A checked box means the item is implemented **and**
 
 - [x] Run the official A2A TCK against the protocol surface (real server layer + scenario executor) and record commits and results in `conformance-results.json`.
 - [x] Fix TCK failures found: route shadowing, Agent Card cache headers, non-JSON content-type handling, Message-vs-Task replies in the test SUT.
-- [ ] Root-cause the two SHOULD-level deviations `CORE-HIST-005/006` (multi-turn history ordering/content), on both transports.
-- [ ] Run ITK / cross-SDK interoperability scenarios (Python, JS, Go, Java clients) and the A2A Inspector.
+- [x] Root-cause the two SHOULD-level deviations `CORE-HIST-005/006`: the TCK reuses one messageId for several messages and the SDK deduplicates it (test artifact, not an adapter defect).
+- [x] Independent-client interoperability: A2A CLI v0.3.0 (Go SDK), `@a2a-js/sdk` 1.3.0 and the Inspector validators over JSON-RPC and HTTP+JSON, mock and real Lemonade.
+- [ ] ITK: not applicable to a standalone adapter (it tests SDKs against each other through its own agents); revisit only if an adapter-facing mode appears.
+- [ ] Client libraries not yet exercised: .NET (preview only), Java, Go library (needs toolchains).
+- [ ] Re-test the Go CLI against an auth-declaring card once a2a-go fixes ProtoJSON `securityRequirements` parsing (upstream #430).
+- [ ] Report the messageId-reuse issue in the TCK upstream.
 - [ ] Add an opt-in CI job that runs the pinned TCK.
 - [ ] Decide whether to declare optional capabilities that are currently skipped (extended Agent Card, push notifications, gRPC).
 
-**Exit criterion:** TCK clean at MUST level (done) plus at least one independent SDK client exercising the live adapter.
+**Exit criterion (met):** TCK clean at MUST level plus independent SDK clients exercising the live adapter.
 
 ## P0 — Real Lemonade validation — mostly done
 
@@ -131,7 +135,7 @@ A2A clients                 Existing API clients
              CPU / GPU / NPU
 ```
 
-The conformance and real-runtime gates are now largely met; the remaining prerequisites are ITK/interoperability evidence and AMD-hardware results.
+The conformance, interoperability and real-runtime gates are now met; the remaining prerequisite is AMD-hardware (NPU/ROCm) evidence.
 
 - [ ] Map A2A endpoints onto the current Lemonade C++ HTTP layer.
 - [ ] Identify the smallest reusable A2A core independent of Python SDK internals.
@@ -180,8 +184,8 @@ If Lemonade gains advanced model routing, scheduling or reasoning features, the 
 1. ~~Real Lemonade E2E~~ — done (CUDA, Vulkan, CPU; 1.7B and 4B).
 2. ~~TTFT, load and cancellation evidence~~ — done on one machine.
 3. ~~Official A2A TCK~~ — done for the protocol surface; two SHOULD deviations open.
-4. **ITK / independent-client interoperability** ← next
-5. **AMD hardware evidence** — NPU/ROCm and a non-llama.cpp engine, which needs access to such a machine.
+4. ~~Independent-client interoperability~~ — done for the CLI, JS SDK and Inspector validators.
+5. **AMD hardware evidence** ← next — NPU/ROCm and a non-llama.cpp engine, which needs access to such a machine.
 6. **Remaining hardening** — backpressure, per-user isolation, rate limiting, fuzzing.
 7. **Upstream design proposal**, then a **native prototype** of the smallest accepted vertical slice.
 

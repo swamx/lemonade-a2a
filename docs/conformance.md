@@ -31,7 +31,7 @@ This suite is intentionally small and is not presented as protocol certification
 >
 > **Skipped** = capability not declared (gRPC, push notifications, extended agent card), a required extension not declared, tests needing a non-streaming agent, and TLS/auth/signature suites the TCK does not exercise. The TCK's own `overall_compatibility` percentage counts those as not passing; read the table above instead.
 >
-> **Known deviations (SHOULD, expected-fail):** `CORE-HIST-005` and `CORE-HIST-006` (multi-turn history ordering/content) on both transports. Not yet root-caused: they depend on how the SDK and the scenario executor record follow-up messages in task history.
+> **Known deviations (SHOULD, expected-fail):** `CORE-HIST-005` and `CORE-HIST-006` (multi-turn history ordering/content) on both transports. **Root cause (2026-10-04): a TCK test artifact, not an adapter defect.** The TCK helper builds every `messageId` as `tck-<name>-<session>`, so the initial message and both follow-ups of its multi-turn task share one `messageId` (`tck-input-required-<session>`). The a2a-sdk treats a repeated `messageId` as a duplicate and does not append it to task history; replaying the same conversation with unique ids records all four messages in order on both transports. The TCK reports `['TCK prerequisite task creation', 'TCK complete after history']` because the two follow-ups were deduplicated. Left as expected-fail because the adapter cannot satisfy a test that violates message-id uniqueness; not yet reported upstream.
 >
 > **Run it:** `python scripts/run_tck.py --tck-dir <a2a-tck clone with its own venv>` (see the script docstring). Not run: ITK / cross-SDK interoperability.
 
