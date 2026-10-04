@@ -59,7 +59,7 @@ Avoid a giant challenge PR. Prefer independently reviewable patches:
 4. **HTTP+JSON / additional bindings** — only after the core is stable.
 5. **Compatibility evidence** — A2A TCK/Inspector results and benchmark report.
 
-Experimental System-One routing, speculative delegation and challenge-specific UI/demo code must not be prerequisites for the upstream A2A protocol patch.
+Separate reasoning/routing layers and challenge-specific UI/demo code must not be prerequisites for the upstream A2A protocol patch.
 
 ## Executable-specification contract
 

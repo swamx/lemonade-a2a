@@ -12,7 +12,7 @@ class Settings:
     port: int = 9000
     public_url: str = "http://localhost:9000"
     agent_name: str = "Lemonade Local Agent"
-    agent_description: str = "Private local AI served by AMD Lemonade through A2A."
+    agent_description: str = "Private local AI served by Lemonade through A2A."
 
     @classmethod
     def from_env(cls) -> Settings:

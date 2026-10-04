@@ -110,25 +110,10 @@ The protocol process does not load model weights. Its memory is limited to HTTP/
 
 A future Rust/Go implementation can target a very small resident footprint, but no `<10 MB` claim should be made until measured on supported platforms.
 
-## Extension architecture
+## Policy boundary
 
-Experimental features sit above or beside the standards adapter:
+The adapter may enforce A2A-facing security and resource limits, but model selection,
+backend routing and inference belong to Lemonade. Do not add a parallel reasoning or
+model-routing layer here.
 
-```text
-A2A request
-    │
-    ▼
-Policy / optional router
-    │
-    ├── System-One decision backend (CLM/LAYA)
-    ├── capability scheduler
-    └── privacy policy
-    │
-    ▼
-A2A standards adapter
-    │
-    ▼
-Lemonade
-```
-
-Core interoperability must continue working when all experimental extensions are disabled.
+Core interoperability must not depend on deployment-specific policies or hardware metadata.

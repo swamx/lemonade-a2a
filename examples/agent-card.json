@@ -1,6 +1,6 @@
 {
   "name": "Lemonade Local Agent",
-  "description": "Private local AI served by AMD Lemonade through A2A.",
+  "description": "Private local AI served by Lemonade through A2A.",
   "url": "http://localhost:9000",
   "version": "0.1.0",
   "defaultInputModes": ["text/plain"],
@@ -13,7 +13,7 @@
       "id": "local-chat",
       "name": "Local AI",
       "description": "Language-model inference executed by Lemonade on local hardware.",
-      "tags": ["local-ai", "lemonade", "amd"],
+      "tags": ["local-ai", "lemonade"],
       "examples": ["Explain why local inference is useful."]
     }
   ]

@@ -41,9 +41,11 @@ Changes to the A2A wire behavior should include interoperability evidence where 
 
 Do not put model inference into the A2A adapter. Lemonade owns model execution. This project owns protocol translation, task lifecycle and related policy.
 
-## Experimental features
+## Scope boundary
 
-System-One routing, speculative delegation, capability scheduling and hardware-aware policies should remain optional modules and must not alter standards-compliant behavior when disabled.
+Do not add a parallel reasoning or model-routing framework. Lemonade owns model selection,
+backend routing and inference; A2A changes here should focus on interoperability and
+must preserve standards-compliant behavior.
 
 ## Security
 

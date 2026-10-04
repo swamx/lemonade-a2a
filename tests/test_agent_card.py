@@ -1,5 +1,6 @@
 from lemonade_a2a.agent_card import build_agent_card
 from lemonade_a2a.config import Settings
+from lemonade_a2a.server import build_agent_card as build_protocol_agent_card
 
 
 def test_agent_card_uses_public_url_and_local_skill() -> None:
@@ -10,6 +11,8 @@ def test_agent_card_uses_public_url_and_local_skill() -> None:
     assert card["capabilities"]["streaming"] is True
     assert card["skills"][0]["id"] == "local-chat"
     assert "Lemonade" in card["skills"][0]["description"]
+    assert "AMD" not in card["description"]
+    assert "amd" not in card["skills"][0]["tags"]
 
 
 def test_agent_card_does_not_claim_unconfigured_modalities() -> None:
@@ -37,3 +40,10 @@ def test_settings_from_env_uses_dataclass_defaults(monkeypatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
     assert Settings.from_env() == Settings()
+
+
+def test_protocol_agent_card_is_hardware_agnostic() -> None:
+    card = build_protocol_agent_card(Settings())
+
+    assert "AMD" not in card.description
+    assert "amd" not in card.skills[0].tags

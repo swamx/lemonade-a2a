@@ -24,7 +24,7 @@ def build_agent_card(settings: Settings) -> dict[str, Any]:
                 "id": "local-chat",
                 "name": "Local AI",
                 "description": "Language-model inference executed by Lemonade on local hardware.",
-                "tags": ["local-ai", "lemonade", "amd"],
+                "tags": ["local-ai", "lemonade"],
                 "examples": ["Explain why local inference is useful."],
             }
         ],

@@ -24,7 +24,7 @@ async def main() -> None:
             "message": {
                 "messageId": str(uuid.uuid4()),
                 "role": "ROLE_USER",
-                "parts": [{"kind": "text", "text": "In one sentence, what is AMD Lemonade?"}],
+                "parts": [{"kind": "text", "text": "In one sentence, what is Lemonade?"}],
             }
         },
     }

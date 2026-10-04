@@ -33,7 +33,7 @@ def build_agent_card(settings: Settings) -> AgentCard:
                 id="local-chat",
                 name="Local AI",
                 description="Language-model inference executed by Lemonade on local hardware.",
-                tags=["local-ai", "lemonade", "amd"],
+                tags=["local-ai", "lemonade"],
                 examples=["Explain why local inference is useful."],
                 input_modes=["text"],
                 output_modes=["text", "task-status"],
@@ -66,7 +66,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Lemonade A2A",
-        description="A2A v1 protocol surface for local AMD Lemonade inference.",
+        description="A2A v1 protocol surface for Lemonade local inference.",
         version="0.1.0",
     )
     add_a2a_routes_to_fastapi(
