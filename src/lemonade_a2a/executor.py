@@ -8,6 +8,7 @@ from a2a.server.agent_execution.context import RequestContext
 from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks.task_updater import TaskUpdater
 from a2a.types import Part, Task, TaskState, TaskStatus
+from a2a.utils.errors import ContentTypeNotSupportedError
 
 from .lemonade_client import LemonadeClient
 
@@ -38,6 +39,9 @@ class LemonadeAgentExecutor(AgentExecutor):
                 self._active[task_id] = current
 
         try:
+            if any(part.WhichOneof("content") != "text" for part in message.parts):
+                raise ContentTypeNotSupportedError()
+
             query = context.get_user_input()
             if not query.strip():
                 raise ValueError("A2A request did not contain non-empty text input")

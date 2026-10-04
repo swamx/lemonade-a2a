@@ -12,7 +12,7 @@ import uuid
 
 import httpx
 
-A2A_URL = "http://127.0.0.1:9000/a2a/jsonrpc"
+A2A_URL = "http://127.0.0.1:9000"
 
 
 async def main() -> None:
