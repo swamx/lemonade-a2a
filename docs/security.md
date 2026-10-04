@@ -28,14 +28,23 @@ The safest default is:
 
 | Control | Status |
 |---|---|
-| Binds to loopback by default (`LEMONADE_A2A_HOST=127.0.0.1`) | Implemented |
+| Binds to loopback by default (`LEMONADE_A2A_HOST=127.0.0.1`); warns at startup when bound elsewhere without an API key | Implemented |
 | Non-text parts rejected; no URL/file fetching | Implemented |
-| Input size limit (`LEMONADE_A2A_MAX_INPUT_CHARS`) | Implemented |
-| Backend timeout (`LEMONADE_TIMEOUT_SECONDS`) | Implemented |
+| Input limits: characters (`LEMONADE_A2A_MAX_INPUT_CHARS`) and parts (`LEMONADE_A2A_MAX_INPUT_PARTS`) | Implemented |
+| Backend timeout (`LEMONADE_TIMEOUT_SECONDS`) and per-task deadline (`LEMONADE_A2A_MAX_TASK_SECONDS`) | Implemented |
+| Concurrency cap (`LEMONADE_A2A_MAX_CONCURRENT_TASKS`); excess tasks are `REJECTED` | Implemented |
+| Bounded task store (`LEMONADE_A2A_MAX_STORED_TASKS`): oldest *finished* tasks are evicted, live tasks never | Implemented |
 | Backend errors reduced to short client-safe messages | Implemented |
-| Authentication / TLS | Not implemented; terminate TLS and authenticate in front of the adapter before any non-loopback use |
-| Limits on concurrent tasks, task lifetime, stored history, streaming buffers | Not implemented (in-memory task store is unbounded) |
+| Optional API-key auth (`LEMONADE_A2A_API_KEY`): `Authorization: Bearer` or `X-API-Key`, constant-time compare, 401 + `WWW-Authenticate`; declared as a `bearer` scheme on the Agent Card only when enabled; Agent Card and `/healthz` stay public | Implemented |
+| Key forwarded to a protected Lemonade backend (`LEMONADE_API_KEY`) | Implemented |
+| TLS in-process (`LEMONADE_A2A_SSL_CERTFILE` / `LEMONADE_A2A_SSL_KEYFILE`) or at a reverse proxy | Implemented (uvicorn); certificates are the operator's responsibility |
+| Non-JSON request bodies rejected (`-32005` / HTTP 415) | Implemented |
+| Graceful shutdown cancels in-flight inference | Implemented |
+| Streaming buffer bounds / slow-consumer backpressure | Not implemented (relies on the SDK queue and Lemonade's own generation rate) |
+| Per-client rate limiting, multiple keys/identities, OAuth/OIDC, mTLS | Not implemented |
 | Prompt/content logging | Not performed; failure logs contain exception summaries only |
+
+A single shared API key authenticates *the caller to the adapter*; it does not give per-user task isolation (the task store owner is not derived from the key).
 
 ## Threats
 

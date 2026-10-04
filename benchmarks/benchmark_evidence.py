@@ -164,6 +164,44 @@ def adapter_footprint(pid: int | None, idle_seconds: float) -> dict:
     }
 
 
+async def _attempt(call, client: httpx.AsyncClient, args: argparse.Namespace) -> dict | None:
+    """One load-test request; ``None`` means it failed or the adapter rejected it."""
+    try:
+        return await call(client, args)
+    except (RuntimeError, httpx.HTTPError):
+        return None
+
+
+async def load_test(args: argparse.Namespace) -> dict:
+    """Fire N simultaneous streaming requests, repeated, against direct and A2A."""
+    results: dict = {}
+    limits = httpx.Limits(max_connections=None, max_keepalive_connections=None)
+    async with httpx.AsyncClient(timeout=args.timeout, limits=limits) as client:
+        for level in args.concurrency:
+            results[str(level)] = {}
+            for name, call in (("direct", direct_stream), ("a2a", a2a_stream)):
+                outcomes: list[dict | None] = []
+                started = time.perf_counter()
+                for _ in range(args.load_rounds):
+                    outcomes += await asyncio.gather(
+                        *(_attempt(call, client, args) for _ in range(level))
+                    )
+                wall = time.perf_counter() - started
+                ok = [o for o in outcomes if o]
+                entry = {
+                    "requests": len(outcomes),
+                    "succeeded": len(ok),
+                    "failed_or_rejected": len(outcomes) - len(ok),
+                    "wall_s": wall,
+                    "requests_per_s": len(ok) / wall,
+                }
+                if ok:
+                    entry["ttft_ms"] = summarize([o["ttft_ms"] for o in ok])
+                    entry["total_ms"] = summarize([o["total_ms"] for o in ok])
+                results[str(level)][name] = entry
+    return results
+
+
 async def run(args: argparse.Namespace) -> dict:
     direct: list[dict] = []
     a2a: list[dict] = []
@@ -183,6 +221,8 @@ async def run(args: argparse.Namespace) -> dict:
         "cancellation": cancel,
         "adapter_footprint": adapter_footprint(args.a2a_pid, args.idle_seconds),
     }
+    if args.concurrency:
+        report["load"] = await load_test(args)
     for metric in ("ttft_ms", "total_ms", "chunks_per_s"):
         report[metric] = {
             "direct": summarize([r[metric] for r in direct]),
@@ -214,6 +254,22 @@ def to_markdown(report: dict) -> str:
     if "rss_mb" in footprint:
         lines.append(f"| Adapter RSS (MB) | - | {footprint['rss_mb']:.1f} | - |")
         lines.append(f"| Adapter idle CPU (%) | - | {footprint['cpu_percent_idle']:.1f} | - |")
+    for level, targets in report.get("load", {}).items():
+        if level == next(iter(report["load"])):
+            lines += [
+                "",
+                "| Concurrent | Target | OK / sent | Req/s | TTFT med / p95 (ms) | Total med / p95 (ms) |",
+                "|---|---|---|---|---|---|",
+            ]
+        for name, e in targets.items():
+            ttft, total = e.get("ttft_ms"), e.get("total_ms")
+            lines.append(
+                f"| {level} | {name} | {e['succeeded']}/{e['requests']} | {e['requests_per_s']:.2f} | "
+                + (f"{ttft['median']:.0f} / {ttft['p95']:.0f}" if ttft else "-")
+                + " | "
+                + (f"{total['median']:.0f} / {total['p95']:.0f}" if total else "-")
+                + " |"
+            )
     return "\n".join(lines)
 
 
@@ -229,6 +285,13 @@ def main() -> None:
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--a2a-pid", type=int, help="adapter PID for memory/CPU (needs psutil)")
     parser.add_argument("--idle-seconds", type=float, default=3.0)
+    parser.add_argument(
+        "--concurrency",
+        type=lambda v: [int(x) for x in v.split(",")],
+        default=[],
+        help="comma-separated concurrency levels for the load test, e.g. 1,2,4,8",
+    )
+    parser.add_argument("--load-rounds", type=int, default=3)
     parser.add_argument("--output", type=Path, default=Path("benchmark-report.json"))
     args = parser.parse_args()
     if not args.model:

@@ -94,3 +94,28 @@ def test_example_agent_card_matches_generated_card() -> None:
     generated = TestClient(create_app()).get("/.well-known/agent-card.json").json()
 
     assert example == generated
+
+
+def test_settings_read_resource_and_security_env(monkeypatch) -> None:
+    values = {
+        "LEMONADE_A2A_MAX_INPUT_PARTS": "4",
+        "LEMONADE_A2A_MAX_TASK_SECONDS": "30",
+        "LEMONADE_A2A_MAX_CONCURRENT_TASKS": "2",
+        "LEMONADE_A2A_MAX_STORED_TASKS": "50",
+        "LEMONADE_A2A_API_KEY": "k1",
+        "LEMONADE_API_KEY": "k2",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+    settings = Settings.from_env()
+
+    assert (settings.max_input_parts, settings.max_task_seconds) == (4, 30.0)
+    assert (settings.max_concurrent_tasks, settings.max_stored_tasks) == (2, 50)
+    assert (settings.api_key, settings.lemonade_api_key) == ("k1", "k2")
+
+
+def test_tls_files_must_be_given_together() -> None:
+    with pytest.raises(ValueError):
+        Settings(ssl_certfile="cert.pem")
+    Settings(ssl_certfile="cert.pem", ssl_keyfile="key.pem")

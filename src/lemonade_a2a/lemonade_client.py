@@ -10,17 +10,20 @@ import httpx
 class LemonadeClient:
     """Minimal client for Lemonade's OpenAI-compatible chat surface."""
 
-    def __init__(self, base_url: str, model: str, timeout: float = 120.0) -> None:
+    def __init__(
+        self, base_url: str, model: str, timeout: float = 120.0, api_key: str = ""
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
+        self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._http: httpx.AsyncClient | None = None
 
     def _client(self) -> httpx.AsyncClient:
         # One pooled client: building an AsyncClient per request loads a fresh
         # SSL context, which costs hundreds of milliseconds of TTFT on Windows.
         if self._http is None:
-            self._http = httpx.AsyncClient(timeout=self.timeout)
+            self._http = httpx.AsyncClient(timeout=self.timeout, headers=self._headers)
         return self._http
 
     async def aclose(self) -> None:

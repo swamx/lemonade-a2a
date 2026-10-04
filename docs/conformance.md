@@ -18,7 +18,22 @@ This suite is intentionally small and is not presented as protocol certification
 
 ### 2. Official A2A TCK
 
-> **Status:** not yet run. [conformance-results.json](conformance-results.json) is the placeholder (`"status": "not-run"`). Several adapter behaviors (base-URL routes, 409 on non-cancelable tasks, `application/json` error bodies, non-text part rejection) were changed in response to TCK expectations, but no pass/fail matrix is recorded yet.
+> **Status (2026-10-04):** run against TCK commit `263b9cf`: **157 passed, 0 failed, 4 expected-fail (SHOULD), 104 skipped**. Results: [conformance-results.json](conformance-results.json) (summary) and [tck-compatibility-report.json](tck-compatibility-report.json) (full TCK report).
+>
+> **Scope matters.** The TCK drives behavior through `messageId` prefixes (file artifacts, input-required, rejection, ...) that an LLM adapter does not implement, so it runs against `tck/tck_sut.py`: the **real server layer** (routes, Agent Card, version negotiation, error mapping, content types, auth middleware) with a **scenario executor** in place of the Lemonade executor. It certifies the protocol surface; Lemonade inference is validated separately (mock E2E and real-Lemonade runs). It is not an official certification.
+>
+> | Transport | Requirements passed | Failed | Skipped |
+> |---|---|---|---|
+> | Agent Card | 8 | 0 | 0 |
+> | JSON-RPC | 65 | 0 MUST (2 SHOULD) | 14 |
+> | HTTP+JSON | 62 | 0 MUST (2 SHOULD) | 13 |
+> | gRPC | - | - | 60 (not offered) |
+>
+> **Skipped** = capability not declared (gRPC, push notifications, extended agent card), a required extension not declared, tests needing a non-streaming agent, and TLS/auth/signature suites the TCK does not exercise. The TCK's own `overall_compatibility` percentage counts those as not passing; read the table above instead.
+>
+> **Known deviations (SHOULD, expected-fail):** `CORE-HIST-005` and `CORE-HIST-006` (multi-turn history ordering/content) on both transports. Not yet root-caused: they depend on how the SDK and the scenario executor record follow-up messages in task history.
+>
+> **Run it:** `python scripts/run_tck.py --tck-dir <a2a-tck clone with its own venv>` (see the script docstring). Not run: ITK / cross-SDK interoperability.
 
 The official `a2aproject/a2a-tck` is the authoritative external conformance gate. Challenge and release reports must record:
 
@@ -59,9 +74,9 @@ Each tagged Lemonade A2A release should publish a machine-readable summary simil
 
 The benchmark and challenge submission should link to this evidence rather than relying on screenshots.
 
-## Pinning mock replies for the TCK
+## Pinning mock replies
 
-`tests/mock_lemonade.py` returns `MOCK_LEMONADE_OK` by default. To pin exact replies for a conformance run, set `MOCK_LEMONADE_RESPONSES` to a JSON object mapping prompt to reply, for example:
+`tests/mock_lemonade.py` returns `MOCK_LEMONADE_OK` by default (the TCK run above does not use it; it uses `tck/tck_sut.py`). To pin exact replies for other runs, set `MOCK_LEMONADE_RESPONSES` to a JSON object mapping prompt to reply, for example:
 
 ```bash
 MOCK_LEMONADE_RESPONSES='{"TCK artifact test": "Generated text content"}' \

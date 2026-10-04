@@ -18,6 +18,9 @@ LOG = logging.getLogger("lemonade_a2a.executor")
 
 ARTIFACT_NAME = "lemonade-response"
 DEFAULT_MAX_INPUT_CHARS = 100_000
+DEFAULT_MAX_INPUT_PARTS = 32
+DEFAULT_MAX_TASK_SECONDS = 600.0
+DEFAULT_MAX_CONCURRENT_TASKS = 8
 
 
 def describe_backend_error(exc: httpx.HTTPError) -> str:
@@ -36,17 +39,34 @@ class LemonadeAgentExecutor(AgentExecutor):
     cancel request can stop the local streaming request instead of only changing
     task metadata. Backend failures end the task in ``TASK_STATE_FAILED`` rather
     than surfacing as a protocol-level internal error.
+
+    Resource bounds: input size/parts, a wall-clock deadline per task and a cap
+    on concurrently running tasks (excess tasks are ``REJECTED``). A client that
+    disconnects from a stream does not cancel its task (A2A tasks outlive
+    connections and can be resubscribed); the deadline bounds abandoned work and
+    ``CancelTask`` stops it explicitly.
     """
 
     def __init__(
-        self, client: LemonadeClient, *, max_input_chars: int = DEFAULT_MAX_INPUT_CHARS
+        self,
+        client: LemonadeClient,
+        *,
+        max_input_chars: int = DEFAULT_MAX_INPUT_CHARS,
+        max_input_parts: int = DEFAULT_MAX_INPUT_PARTS,
+        max_task_seconds: float = DEFAULT_MAX_TASK_SECONDS,
+        max_concurrent_tasks: int = DEFAULT_MAX_CONCURRENT_TASKS,
     ) -> None:
         self.client = client
         self.max_input_chars = max_input_chars
+        self.max_input_parts = max_input_parts
+        self.max_task_seconds = max_task_seconds
+        self.max_concurrent_tasks = max_concurrent_tasks
         self._active: dict[str, asyncio.Task[None]] = {}
         self._active_lock = asyncio.Lock()
 
     def _validated_query(self, context: RequestContext, message: Message) -> str:
+        if len(message.parts) > self.max_input_parts:
+            raise InvalidParamsError(f"Input exceeds {self.max_input_parts} parts")
         if any(part.WhichOneof("content") != "text" for part in message.parts):
             raise ContentTypeNotSupportedError()
 
@@ -64,14 +84,15 @@ class LemonadeAgentExecutor(AgentExecutor):
         if message is None or not task_id or not context_id:
             raise InvalidParamsError("A2A request is missing message/task/context identifiers")
 
+        query = self._validated_query(context, message)
+
         current = asyncio.current_task()
-        if current is not None:
-            async with self._active_lock:
+        async with self._active_lock:
+            busy = len(self._active) >= self.max_concurrent_tasks
+            if current is not None and not busy:
                 self._active[task_id] = current
 
         try:
-            query = self._validated_query(context, message)
-
             await event_queue.enqueue_event(
                 Task(
                     id=task_id,
@@ -85,10 +106,24 @@ class LemonadeAgentExecutor(AgentExecutor):
                 task_id=task_id,
                 context_id=context_id,
             )
+            if busy:
+                await updater.reject(
+                    updater.new_agent_message(
+                        [Part(text="Too many concurrent tasks; retry later.")]
+                    )
+                )
+                return
             await updater.start_work()
 
             try:
-                await self._stream_artifact(updater, query)
+                async with asyncio.timeout(self.max_task_seconds):
+                    await self._stream_artifact(updater, query)
+            except TimeoutError:
+                LOG.warning("Task %s exceeded %.0fs deadline", task_id, self.max_task_seconds)
+                await updater.failed(
+                    updater.new_agent_message([Part(text="Task exceeded its time limit.")])
+                )
+                return
             except httpx.HTTPError as exc:
                 LOG.warning("Lemonade request failed for task %s: %r", task_id, exc)
                 await updater.failed(
@@ -121,6 +156,14 @@ class LemonadeAgentExecutor(AgentExecutor):
             append=emitted,
             last_chunk=True,
         )
+
+    async def shutdown(self) -> None:
+        """Cancel in-flight inference and wait for it to unwind (server shutdown)."""
+        async with self._active_lock:
+            running = [task for task in self._active.values() if not task.done()]
+        for task in running:
+            task.cancel()
+        await asyncio.gather(*running, return_exceptions=True)
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         task_id = context.task_id or ""

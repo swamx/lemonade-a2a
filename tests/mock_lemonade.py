@@ -56,9 +56,16 @@ async def chat_completions(request: Request):
         )
 
     async def events():
-        tokens = [text] if override is not None else ["MOCK_", "LEMONADE_", "OK"]
+        count = int(os.environ.get("MOCK_LEMONADE_TOKEN_COUNT", "0"))
+        if override is not None:
+            tokens = [text]
+        elif count > 0:
+            tokens = [f"tok{i} " for i in range(count)]
+        else:
+            tokens = ["MOCK_", "LEMONADE_", "OK"]
         for token in tokens:
             if await request.is_disconnected():
+                print("MOCK_CLIENT_DISCONNECTED", flush=True)
                 return
             event = {
                 "id": "mock-stream",
@@ -67,6 +74,7 @@ async def chat_completions(request: Request):
             }
             yield f"data: {json.dumps(event)}\n\n"
             await asyncio.sleep(float(os.environ.get("MOCK_LEMONADE_TOKEN_DELAY", "0.01")))
+        print("MOCK_STREAM_COMPLETE", flush=True)
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")
