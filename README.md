@@ -126,7 +126,7 @@ The exact CLI and paths above are design targets, not claims about current upstr
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scriptsctivate
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -e .
 
 export LEMONADE_BASE_URL=http://localhost:13305/v1
