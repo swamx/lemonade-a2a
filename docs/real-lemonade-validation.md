@@ -70,3 +70,5 @@ After the basic real-runtime test succeeds:
 ## CI policy
 
 The real-model validation should remain opt-in or self-hosted because hosted CI should not download large models or assume accelerator availability. Deterministic Mock Lemonade remains the mandatory pull-request gate.
+
+> **Port note:** a default Lemonade install already uses port 9000 for its WebSocket. If the adapter fails to bind, use `LEMONADE_A2A_PORT=9100` and `LEMONADE_A2A_PUBLIC_URL=http://127.0.0.1:9100`, and pass `--a2a http://127.0.0.1:9100` to the scripts. Measured results are in [benchmarks.md](benchmarks.md).
