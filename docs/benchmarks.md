@@ -26,12 +26,29 @@ Record the Lemonade version, backend (CPU/GPU/NPU), model and hardware next to e
 
 ## Results
 
-No real-runtime results are recorded yet. The harness has only been exercised against the deterministic mock (`tests/mock_lemonade.py`), whose numbers are not evidence of real-model behaviour. Add reports here as they are collected:
+### Protocol overhead (mock backend) - 2026-10-04
 
-| Date | Lemonade / backend / model | Hardware | TTFT Δ | Total Δ | Cancellation | Report |
+Deterministic mock Lemonade (`tests/mock_lemonade.py`, 50 ms/token, 3 chunks), 20 runs after 3 warmups, median / p95, Windows 11 laptop, Python 3.11, adapter and mock on loopback. Raw data: [`benchmark-results/2026-10-04-mock-protocol-overhead.json`](benchmark-results/2026-10-04-mock-protocol-overhead.json).
+
+| Metric | Direct | A2A -> backend | Delta (median) |
+|---|---|---|---|
+| TTFT (ms) | 4.2 / 5.8 | 14.0 / 18.9 | +9.8 |
+| Total latency (ms) | 170.5 / 200.6 | 181.6 / 211.5 | +11.1 |
+| Chunks/sec | 12.0 / 13.6 | 12.0 / 13.9 | -0.1 |
+| Cancellation | - | pass | - |
+| Adapter RSS (MB) | - | 68.3 | - |
+| Adapter idle CPU (%) | - | 0.5 | - |
+
+This isolates what A2A adds on top of an instant backend: roughly 10 ms of TTFT and total latency, with unchanged streaming throughput. It says nothing about model quality or real inference speed, and the mock does not exercise hardware backends.
+
+### Real Lemonade runs
+
+**Pending.** No Lemonade server was available on the machine used so far. Add rows as runs are collected (one per backend/model):
+
+| Date | Lemonade / backend / model | Hardware | TTFT delta | Total delta | Cancellation | Report |
 |---|---|---|---|---|---|---|
 | _pending_ | | | | | | |
 
 ## Findings so far
 
-- **Per-request HTTP client cost.** `LemonadeClient` created a new `httpx.AsyncClient` per request. Against the mock this added ~350 ms to TTFT (and to every non-streaming call) on Windows because each client builds a fresh SSL context. The adapter now reuses one pooled client; warm adapter TTFT overhead against the mock fell from ~360 ms to ~13 ms.
+- **Per-request HTTP client cost.** `LemonadeClient` created a new `httpx.AsyncClient` per request. Against the mock this added ~350 ms to TTFT (and to every non-streaming call) on Windows because each client builds a fresh SSL context. The adapter now reuses one pooled client; warm adapter TTFT overhead against the mock fell from ~360 ms to ~10 ms.
