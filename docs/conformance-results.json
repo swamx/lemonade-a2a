@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
   "a2a_protocol": "1.0",
-  "implementation_commit": "c62f820d9cabce1f4ff2fe0e9ae6381f099e50d1",
+  "implementation_commit": "7796c0ae2377f583df2df70e4eb96d4fa2f98ab6",
   "tck_commit": "263b9cfaf16a554bdfb166a7ba5b67716e946349",
   "itk_commit": null,
-  "run_at": "2026-10-04T16:29:58+00:00",
+  "run_at": "2026-10-04T17:38:00+00:00",
   "status": "passed",
   "notes": [
     "skipped = capability not declared (gRPC, push notifications, extended card) or not applicable (streaming agent); xfailed = SHOULD-level deviations listed above.",
@@ -15,6 +15,10 @@
     "CORE-HIST-005 (SHOULD) on jsonrpc, http_json",
     "CORE-HIST-006 (SHOULD) on jsonrpc, http_json"
   ],
+  "deviation_notes": {
+    "CORE-HIST-005": "TCK test artifact: follow-up messages reuse one messageId, which the SDK deduplicates",
+    "CORE-HIST-006": "TCK test artifact: follow-up messages reuse one messageId, which the SDK deduplicates"
+  },
   "transports": {
     "agent_card": {
       "passed": 8,
@@ -43,7 +47,7 @@
     "xfailed": 4
   },
   "tck_summary": {
-    "timestamp": "2026-10-04T16:29:57.988510+00:00",
+    "timestamp": "2026-10-04T17:38:00.282783+00:00",
     "sut_url": "http://127.0.0.1:9999",
     "spec_version": "",
     "overall_compatibility": "75.2%",
