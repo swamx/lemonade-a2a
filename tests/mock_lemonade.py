@@ -66,7 +66,7 @@ async def chat_completions(request: Request):
                 "choices": [{"index": 0, "delta": {"content": token}}],
             }
             yield f"data: {json.dumps(event)}\n\n"
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(float(os.environ.get("MOCK_LEMONADE_TOKEN_DELAY", "0.01")))
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")

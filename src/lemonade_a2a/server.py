@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager
 
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import (
@@ -101,7 +102,13 @@ def create_app() -> FastAPI:
         agent_card=agent_card,
     )
 
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        yield
+        await client.aclose()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Lemonade A2A",
         description="A2A v1 protocol surface for Lemonade local inference.",
         version="0.1.0",

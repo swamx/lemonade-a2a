@@ -36,3 +36,14 @@ async def test_stream_yields_only_text_deltas(monkeypatch) -> None:
     client = LemonadeClient("http://localhost:8000/v1", "test-model")
     chunks = [chunk async for chunk in client.stream([{"role": "user", "content": "hi"}])]
     assert chunks == ["Hello", " world"]
+
+
+@pytest.mark.asyncio
+async def test_client_reuses_one_http_client_until_closed() -> None:
+    client = LemonadeClient("http://localhost:8000/v1", "test-model")
+    first = client._client()
+
+    assert client._client() is first
+    await client.aclose()
+    assert client._client() is not first
+    await client.aclose()
