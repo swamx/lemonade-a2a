@@ -2,11 +2,27 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 app = FastAPI(title="Mock Lemonade")
+
+DEFAULT_TEXT = "MOCK_LEMONADE_OK"
+
+
+def _canned_responses() -> dict[str, str]:
+    """Prompt -> reply overrides from MOCK_LEMONADE_RESPONSES (a JSON object).
+
+    Lets conformance runs (e.g. the A2A TCK) pin exact replies without
+    hardcoding any suite-specific prompt in the mock itself.
+    """
+    try:
+        value = json.loads(os.environ.get("MOCK_LEMONADE_RESPONSES", "{}"))
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 @app.get("/healthz")
@@ -19,12 +35,16 @@ async def chat_completions(request: Request):
     payload = await request.json()
     stream = bool(payload.get("stream"))
     messages = payload.get("messages") or []
-    tck_text_artifact = any(
-        message.get("content") == "TCK artifact test"
-        for message in messages
-        if isinstance(message, dict)
+    canned = _canned_responses()
+    override = next(
+        (
+            canned[message["content"]]
+            for message in messages
+            if isinstance(message, dict) and message.get("content") in canned
+        ),
+        None,
     )
-    text = "Generated text content" if tck_text_artifact else "MOCK_LEMONADE_OK"
+    text = override if override is not None else DEFAULT_TEXT
 
     if not stream:
         return JSONResponse(
@@ -36,7 +56,7 @@ async def chat_completions(request: Request):
         )
 
     async def events():
-        tokens = [text] if tck_text_artifact else ["MOCK_", "LEMONADE_", "OK"]
+        tokens = [text] if override is not None else ["MOCK_", "LEMONADE_", "OK"]
         for token in tokens:
             if await request.is_disconnected():
                 return

@@ -15,10 +15,7 @@ def test_agent_card_has_jsonrpc_and_http_json_bindings() -> None:
     bindings = {interface.protocol_binding for interface in card.supported_interfaces}
     assert "JSONRPC" in bindings
     assert "HTTP+JSON" in bindings
-    assert all(
-        interface.url == "http://localhost:9000"
-        for interface in card.supported_interfaces
-    )
+    assert all(interface.url == "http://localhost:9000" for interface in card.supported_interfaces)
 
 
 def test_protocol_routes_match_the_advertised_base_url() -> None:
@@ -63,3 +60,12 @@ def test_not_cancelable_maps_to_409_and_rest_content_type() -> None:
     assert response.status_code == 409
     assert response.json()["error"]["code"] == 409
     assert client.post("/tasks/t2:cancel").status_code == 400
+
+
+def test_legacy_rest_prefix_is_not_shadowed_by_tenant_mount() -> None:
+    response = TestClient(create_app()).get(
+        "/a2a/rest/tasks/missing", headers={"A2A-Version": "1.0"}
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["status"] == "NOT_FOUND"

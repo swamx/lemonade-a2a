@@ -124,15 +124,17 @@ def create_app() -> FastAPI:
                 enable_v0_3_compat=False,
             ),
         ],
+        # Legacy prefixed routes go first: the unprefixed set ends with a
+        # catch-all "/{tenant}" mount that would otherwise shadow them.
         rest_routes=[
             *create_rest_routes(
                 request_handler=request_handler,
-                path_prefix="",
+                path_prefix="/a2a/rest",
                 enable_v0_3_compat=False,
             ),
             *create_rest_routes(
                 request_handler=request_handler,
-                path_prefix="/a2a/rest",
+                path_prefix="",
                 enable_v0_3_compat=False,
             ),
         ],
