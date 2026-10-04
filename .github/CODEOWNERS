@@ -1,0 +1,10 @@
+# Every change needs a review from the owner. The branch ruleset sets
+# "require review from code owners", so an approval from anyone else
+# (including automated reviewers and agents) does not satisfy it.
+*                       @swamx
+
+# Spelled out because these define what is allowed to merge.
+/.github/               @swamx
+/.claude/               @swamx
+/pyproject.toml         @swamx
+/SECURITY.md            @swamx

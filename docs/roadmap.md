@@ -94,10 +94,13 @@ The objective is not to optimize the Python adapter indefinitely; it is to estab
 - [x] Authentication (shared API key) and TLS options; secrets kept out of `repr`/logs.
 - [ ] Per-user identity and task isolation (the store owner is not derived from the key); multiple keys; rate limiting.
 - [ ] OAuth/OIDC or mTLS options.
+- [x] Request body size limit (413), no public docs/OpenAPI pages, security response headers, startup warnings for exposed deployments.
+- [x] Automated security gates in CI: CodeQL, bandit, pip-audit, secret scan, dependency review, weekly schedule, Dependabot; coverage gate at 95% (measured 99%).
+- [x] Branch ruleset, CODEOWNERS, PR template, SECURITY.md and agent guard rails written ([governance.md](governance.md)); ruleset applied only after owner confirmation.
 - [ ] Fuzz malformed messages, parts and metadata.
 - [ ] Validate safe URL/file handling before enabling richer parts.
 - [ ] Define local-only, LAN and externally exposed security profiles.
-- [ ] Publish a formal security policy.
+- [x] Publish a formal security policy ([SECURITY.md](../SECURITY.md)).
 
 ## P1 — Prove local-AI-system portability
 

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hmac
-import json
 import logging
 from contextlib import asynccontextmanager
 from email.utils import formatdate
@@ -25,13 +23,20 @@ from a2a.types import (
     StringList,
 )
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse, Response
 from starlette.routing import BaseRoute, Mount
 
 from . import __version__
 from .config import Settings
 from .executor import LemonadeAgentExecutor
 from .lemonade_client import LemonadeClient
+from .middleware import (
+    BodySizeLimitMiddleware,
+    add_agent_card_cache_headers,
+    add_security_headers,
+    normalize_rest_response,
+    reject_unsupported_content_type,
+    require_api_key,
+)
 from .task_store import BoundedTaskStore
 
 LOG = logging.getLogger("lemonade_a2a")
@@ -86,120 +91,6 @@ def build_agent_card(settings: Settings) -> AgentCard:
     )
 
 
-async def normalize_rest_response(request, call_next):
-    """Align HTTP+JSON responses with TCK expectations.
-
-    Maps TASK_NOT_CANCELABLE to HTTP 409 and serves errors as application/json.
-    """
-    response = await call_next(request)
-    path = request.url.path
-
-    if path.endswith(":cancel") and response.status_code == 400:
-        body = b"".join([chunk async for chunk in response.body_iterator])
-        try:
-            payload = json.loads(body)
-            details = payload["error"]["details"]
-            not_cancelable = any(
-                isinstance(item, dict) and item.get("reason") == "TASK_NOT_CANCELABLE"
-                for item in details
-            )
-        except (ValueError, KeyError, TypeError):
-            payload, not_cancelable = None, False
-        if not_cancelable:
-            payload["error"]["code"] = 409
-            return JSONResponse(payload, status_code=409)
-        response = Response(
-            content=body,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-        )
-
-    if path.startswith(("/message:", "/tasks", "/extendedAgentCard", "/a2a/rest/")) and (
-        response.headers.get("content-type", "").startswith("application/a2a+json")
-    ):
-        response.headers["content-type"] = "application/json"
-    return response
-
-
-PUBLIC_PATHS = frozenset({"/healthz", "/.well-known/agent-card.json"})
-
-
-def require_api_key(api_key: str):
-    """Middleware factory: bearer / X-API-Key authentication (discovery stays public)."""
-    expected = api_key.encode()
-
-    async def middleware(request, call_next):
-        if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
-            return await call_next(request)
-        bearer = request.headers.get("authorization", "")
-        supplied = bearer[7:] if bearer[:7].lower() == "bearer " else ""
-        supplied = supplied or request.headers.get("x-api-key", "")
-        if not hmac.compare_digest(supplied.encode(), expected):
-            error = {"code": 401, "status": "UNAUTHENTICATED", "message": "Authentication required"}
-            return JSONResponse(
-                {"error": error}, status_code=401, headers={"WWW-Authenticate": "Bearer"}
-            )
-        return await call_next(request)
-
-    return middleware
-
-
-JSON_MEDIA_TYPES = ("application/json", "application/a2a+json")
-JSONRPC_PATHS = ("/", "/a2a/jsonrpc")
-CONTENT_TYPE_NOT_SUPPORTED_MESSAGE = "Content-Type must be application/json"
-
-
-def _has_body(request) -> bool:
-    length = request.headers.get("content-length")
-    return bool(length and length != "0") or "transfer-encoding" in request.headers
-
-
-async def reject_unsupported_content_type(request, call_next):
-    """Answer ContentTypeNotSupported for non-JSON request bodies.
-
-    JSON-RPC uses error -32005; HTTP+JSON uses 415 with an AIP-193 error body.
-    Body-less POSTs (``:cancel``, ``:subscribe``) are not affected.
-    """
-    if request.method == "POST" and _has_body(request):
-        media_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
-        if media_type not in JSON_MEDIA_TYPES:
-            if request.url.path in JSONRPC_PATHS:
-                error = {"code": -32005, "message": CONTENT_TYPE_NOT_SUPPORTED_MESSAGE}
-                return JSONResponse({"jsonrpc": "2.0", "id": None, "error": error})
-            error = {
-                "code": 415,
-                "status": "INVALID_ARGUMENT",
-                "message": CONTENT_TYPE_NOT_SUPPORTED_MESSAGE,
-                "details": [
-                    {
-                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-                        "reason": "CONTENT_TYPE_NOT_SUPPORTED",
-                        "domain": "a2a-protocol.org",
-                        "metadata": {},
-                    }
-                ],
-            }
-            return JSONResponse({"error": error}, status_code=415)
-    return await call_next(request)
-
-
-AGENT_CARD_PATH = "/.well-known/agent-card.json"
-AGENT_CARD_MAX_AGE_SECONDS = 300
-
-
-def add_agent_card_cache_headers(last_modified: str):
-    """Middleware factory: cacheability headers for the (static) Agent Card (spec 8.6.1)."""
-
-    async def middleware(request, call_next):
-        response = await call_next(request)
-        if request.url.path == AGENT_CARD_PATH and response.status_code == 200:
-            response.headers["cache-control"] = f"public, max-age={AGENT_CARD_MAX_AGE_SECONDS}"
-            response.headers["last-modified"] = last_modified
-        return response
-
-    return middleware
-
-
 def _rest_routes(request_handler: DefaultRequestHandler) -> list[BaseRoute]:
     """HTTP+JSON routes at the base URL plus the legacy ``/a2a/rest`` prefix.
 
@@ -248,13 +139,19 @@ def create_app(settings: Settings | None = None, executor: AgentExecutor | None 
             await shutdown()
         await client.aclose()
 
+    # No interactive docs / OpenAPI: the contract is the A2A Agent Card, and these
+    # pages would only advertise internals (and stay open when no API key is set).
     app = FastAPI(
         lifespan=lifespan,
         title="Lemonade A2A",
         description="A2A v1 protocol surface for Lemonade local inference.",
         version=__version__,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
 
+    app.middleware("http")(add_security_headers)
     app.middleware("http")(reject_unsupported_content_type)
     app.middleware("http")(normalize_rest_response)
     # The card only changes with configuration, i.e. at process start.
@@ -281,6 +178,8 @@ def create_app(settings: Settings | None = None, executor: AgentExecutor | None 
     if settings.api_key:
         # Added last so it is outermost: unauthenticated requests do no other work.
         app.middleware("http")(require_api_key(settings.api_key))
+    # Outermost: oversized bodies are refused before anything else reads them.
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, str]:
@@ -295,10 +194,17 @@ def main() -> None:
     settings = Settings.from_env()
     logging.basicConfig(level=logging.INFO)
     LOG.info("Starting Lemonade A2A on %s:%s", settings.host, settings.port)
-    if not settings.api_key and settings.host not in ("127.0.0.1", "localhost", "::1"):
+    exposed = settings.host not in ("127.0.0.1", "localhost", "::1")
+    if exposed and not settings.api_key:
         LOG.warning(
             "Listening on %s without LEMONADE_A2A_API_KEY: any peer that can reach this "
             "port can use the model. Set an API key and terminate TLS before exposing it.",
+            settings.host,
+        )
+    if exposed and not settings.ssl_certfile:
+        LOG.warning(
+            "Listening on %s without TLS: credentials and prompts cross the network in "
+            "clear text unless a TLS-terminating proxy sits in front.",
             settings.host,
         )
     uvicorn.run(

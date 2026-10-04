@@ -49,6 +49,16 @@ CI runs exactly these (Python 3.11-3.13), plus a mock-Lemonade black-box job.
 
 ## Pull requests
 
+Nothing is pushed to `main` directly. Every change is a pull request that needs the owner's approval and green checks: ruff and format, tests on Python 3.11-3.13, coverage of at least 95% (`pytest --cov`), the mock black-box E2E, bandit, pip-audit, secret scan, dependency review and CodeQL. AI agents may open PRs but do not approve or merge them. Details: [docs/governance.md](docs/governance.md).
+
+Run the main gates locally:
+
+```bash
+pip install -e '.[dev]'
+ruff check . && ruff format --check . && pytest --cov
+bandit -c pyproject.toml -r src -ll && pip-audit .
+```
+
 Keep protocol changes small and document the relevant A2A semantic. New capabilities should include tests. Do not advertise unsupported Agent Card skills.
 
 Changes to the A2A wire behavior should include interoperability evidence where possible.
