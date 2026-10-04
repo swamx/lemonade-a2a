@@ -51,9 +51,7 @@ async def run(args: argparse.Namespace) -> None:
             await timed_post(client, args.a2a_url, a2a_payload, {"A2A-Version": "1.0"})
         for _ in range(args.runs):
             direct.append(await timed_post(client, args.direct_url, direct_payload))
-            a2a.append(
-                await timed_post(client, args.a2a_url, a2a_payload, {"A2A-Version": "1.0"})
-            )
+            a2a.append(await timed_post(client, args.a2a_url, a2a_payload, {"A2A-Version": "1.0"}))
 
     direct_med = statistics.median(direct)
     a2a_med = statistics.median(a2a)

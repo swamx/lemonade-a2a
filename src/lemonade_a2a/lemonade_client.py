@@ -33,11 +33,14 @@ class LemonadeClient:
 
     async def stream(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
         """Yield text deltas from Lemonade's OpenAI-compatible SSE stream."""
-        async with httpx.AsyncClient(timeout=self.timeout) as client, client.stream(
-            "POST",
-            f"{self.base_url}/chat/completions",
-            json=self._payload(messages, stream=True),
-        ) as response:
+        async with (
+            httpx.AsyncClient(timeout=self.timeout) as client,
+            client.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                json=self._payload(messages, stream=True),
+            ) as response,
+        ):
             response.raise_for_status()
             async for line in response.aiter_lines():
                 if not line.startswith("data:"):

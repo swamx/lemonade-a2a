@@ -56,3 +56,12 @@ Each tagged Lemonade A2A release should publish a machine-readable summary simil
 ```
 
 The benchmark and challenge submission should link to this evidence rather than relying on screenshots.
+
+## Pinning mock replies for the TCK
+
+`tests/mock_lemonade.py` returns `MOCK_LEMONADE_OK` by default. To pin exact replies for a conformance run, set `MOCK_LEMONADE_RESPONSES` to a JSON object mapping prompt to reply, for example:
+
+```bash
+MOCK_LEMONADE_RESPONSES='{"TCK artifact test": "Generated text content"}' \
+  python -m uvicorn tests.mock_lemonade:app --port 13305
+```

@@ -87,7 +87,9 @@ async def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Validate Lemonade A2A against a real Lemonade server")
+    parser = argparse.ArgumentParser(
+        description="Validate Lemonade A2A against a real Lemonade server"
+    )
     parser.add_argument("--a2a", default="http://127.0.0.1:9000")
     parser.add_argument("--lemonade", default="http://127.0.0.1:13305/v1")
     parser.add_argument("--model", default="")
