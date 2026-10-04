@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import httpx
@@ -67,10 +68,10 @@ async def test_executor_rejects_non_text_parts() -> None:
         await LemonadeAgentExecutor(FakeClient()).execute(context, FakeQueue())
 
 
-def _context(text: str = "hello"):
+def _context(text: str = "hello", task_id: str = "t1"):
     return SimpleNamespace(
         message=Message(message_id="m1", role=Role.ROLE_USER, parts=[Part(text=text)]),
-        task_id="t1",
+        task_id=task_id,
         context_id="c1",
         get_user_input=lambda: text,
     )
@@ -128,3 +129,71 @@ async def test_empty_and_oversized_input_are_invalid_params() -> None:
         await executor.execute(_context("   "), FakeQueue())
     with pytest.raises(InvalidParamsError):
         await executor.execute(_context("too long"), FakeQueue())
+
+
+class BlockingClient:
+    """Streams one chunk, then waits until released."""
+
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def stream(self, messages):
+        yield "partial"
+        self.started.set()
+        await self.release.wait()
+        yield "done"
+
+
+@pytest.mark.asyncio
+async def test_excess_concurrent_tasks_are_rejected() -> None:
+    client = BlockingClient()
+    executor = LemonadeAgentExecutor(client, max_concurrent_tasks=1)
+    first_queue, second_queue = FakeQueue(), FakeQueue()
+
+    first = asyncio.create_task(executor.execute(_context(task_id="a"), first_queue))
+    await client.started.wait()
+    await executor.execute(_context(task_id="b"), second_queue)
+
+    assert _final_state(second_queue) == TaskState.TASK_STATE_REJECTED
+    client.release.set()
+    await first
+    assert _final_state(first_queue) == TaskState.TASK_STATE_COMPLETED
+
+    # Capacity is released once the first task finishes.
+    third_queue = FakeQueue()
+    await executor.execute(_context(task_id="c"), third_queue)
+    assert _final_state(third_queue) == TaskState.TASK_STATE_COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_task_deadline_fails_the_task() -> None:
+    queue = FakeQueue()
+    executor = LemonadeAgentExecutor(BlockingClient(), max_task_seconds=0.05)
+
+    await executor.execute(_context(), queue)
+
+    assert _final_state(queue) == TaskState.TASK_STATE_FAILED
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancels_running_tasks() -> None:
+    client = BlockingClient()
+    executor = LemonadeAgentExecutor(client)
+    running = asyncio.create_task(executor.execute(_context(), FakeQueue()))
+    await client.started.wait()
+
+    await executor.shutdown()
+
+    assert running.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_too_many_parts_are_invalid_params() -> None:
+    context = _context()
+    context.message = Message(
+        message_id="m1", role=Role.ROLE_USER, parts=[Part(text="x") for _ in range(3)]
+    )
+
+    with pytest.raises(InvalidParamsError):
+        await LemonadeAgentExecutor(FakeClient(), max_input_parts=2).execute(context, FakeQueue())

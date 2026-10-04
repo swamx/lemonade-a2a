@@ -47,3 +47,8 @@ async def test_client_reuses_one_http_client_until_closed() -> None:
     await client.aclose()
     assert client._client() is not first
     await client.aclose()
+
+
+def test_backend_api_key_is_sent_as_bearer_token() -> None:
+    assert LemonadeClient("http://x/v1", "m", api_key="k")._headers == {"Authorization": "Bearer k"}
+    assert LemonadeClient("http://x/v1", "m")._headers == {}
