@@ -12,7 +12,7 @@ import uuid
 
 import httpx
 
-A2A_URL = "http://127.0.0.1:9000"
+A2A_URL = "http://127.0.0.1:9100"
 
 
 async def main() -> None:
@@ -24,7 +24,7 @@ async def main() -> None:
             "message": {
                 "messageId": str(uuid.uuid4()),
                 "role": "ROLE_USER",
-                "parts": [{"kind": "text", "text": "In one sentence, what is Lemonade?"}],
+                "parts": [{"text": "In one sentence, what is Lemonade?"}],
             }
         },
     }

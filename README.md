@@ -78,22 +78,17 @@ A2A should remain above Lemonade's model/backend router. It should not know whet
 
 See [docs/architecture.md](docs/architecture.md).
 
-## Current validation status
+## Current status
 
-The reference implementation now has the major MVP pieces in place:
+Validated so far (details: [roadmap](docs/roadmap.md), [benchmarks](docs/benchmarks.md)):
 
-- official A2A SDK integration and `AgentExecutor`;
-- Agent Card discovery;
-- JSON-RPC and HTTP+JSON A2A surfaces;
-- Lemonade OpenAI-compatible backend client;
-- deterministic mock-Lemonade end-to-end testing;
-- SSE token streaming into A2A artifacts;
-- active cancellation propagation into the running inference coroutine;
-- CI across supported Python versions;
-- A2A conformance checks;
-- direct-vs-A2A latency benchmark tooling.
+- official A2A SDK integration with JSON-RPC and HTTP+JSON bindings served at the base URL (legacy `/a2a/jsonrpc` and `/a2a/rest` paths kept);
+- automatic Agent Card, SSE streaming into A2A artifacts, cancellation into the running inference, backend failures mapped to `FAILED` tasks;
+- input validation and limits (non-text parts rejected, size limit, backend timeout);
+- CI on Python 3.11-3.13 (ruff, ruff format, pytest) plus a deterministic mock-Lemonade end-to-end job;
+- a **real Lemonade 2026.40.0** run (llama.cpp GPU and CPU): the end-to-end validator passes, A2A adds about +5 to +11 ms TTFT, cancellation works.
 
-The latest `main` CI and deterministic E2E workflows are green. The next validation milestone is **real Lemonade runtime validation**, followed by upstream-native design work.
+Not yet done: official A2A TCK/ITK results, NPU/ROCm backends, concurrent-load and larger-model measurements, authentication/TLS, bounded task state. The next milestone is conformance evidence and lifecycle hardening, followed by the upstream-native design.
 
 ## North-star developer experience
 
@@ -130,15 +125,29 @@ The exact CLI and paths above are design targets, not claims about current upstr
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
+source .venv/bin/activate       # Windows: .venv\Scriptsctivate
 pip install -e .
 
 export LEMONADE_BASE_URL=http://localhost:13305/v1
 export LEMONADE_MODEL=your-model
-lemonade-a2a
+lemonade-a2a                    # serves on http://127.0.0.1:9100
 ```
 
-The adapter expects a running Lemonade server exposing an OpenAI-compatible endpoint.
+The adapter expects a running Lemonade server exposing an OpenAI-compatible endpoint. It listens on **9100** by default because a stock Lemonade install already uses port 9000 for its WebSocket.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LEMONADE_BASE_URL` | `http://localhost:13305/v1` | Lemonade OpenAI-compatible endpoint |
+| `LEMONADE_MODEL` | empty (server default) | Model id sent to Lemonade |
+| `LEMONADE_A2A_HOST` / `LEMONADE_A2A_PORT` | `127.0.0.1` / `9100` | Listen address |
+| `LEMONADE_A2A_PUBLIC_URL` | `http://localhost:9100` | URL advertised in the Agent Card; keep in sync with host/port |
+| `LEMONADE_A2A_AGENT_NAME` / `LEMONADE_A2A_AGENT_DESCRIPTION` | see `config.py` | Agent Card text |
+| `LEMONADE_TIMEOUT_SECONDS` | `120` | Backend request timeout |
+| `LEMONADE_A2A_MAX_INPUT_CHARS` | `100000` | Maximum accepted input text |
+
+Invalid values fail at startup. See [examples/](examples/) for an Agent Card and a client, and [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) for validating against a real Lemonade install.
 
 ## Design principles
 
@@ -202,13 +211,12 @@ Before implementing the native C++ surface, the reference adapter should pass re
 
 ## Recommended next steps
 
-1. Run the black-box suite against a **real Lemonade Server**, not only Mock Lemonade.
-2. Add **TTFT and streaming overhead** to the benchmark; latency should be compared against direct Lemonade inference.
-3. Add timeout/failure mapping and bounded streaming/backpressure tests.
-4. Run and record the official A2A TCK/Inspector compatibility matrix.
-5. Validate at least two materially different Lemonade backend configurations to prove hardware independence.
-6. Draft the native Lemonade A2A API boundary and map it onto Lemonade's existing HTTP/router architecture.
-7. Only then prototype the native C++ A2A endpoint and propose it upstream.
+1. Run the official A2A TCK/Inspector against the live adapter and publish the pass/fail matrix.
+2. Add lifecycle hardening: bounded streaming/task state, client-disconnect propagation, concurrent-task and cancellation-race tests, and verify cancellation stops the real backend request.
+3. Extend benchmarks: larger models, NPU/ROCm backends, concurrent load.
+4. Add authentication/TLS guidance for non-loopback deployments.
+5. Draft the native Lemonade A2A API boundary and map it onto Lemonade's HTTP/router architecture.
+6. Only then prototype the native C++ A2A endpoint and propose it upstream.
 
 See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 
@@ -218,13 +226,15 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 - [Protocol mapping](docs/protocol-mapping.md)
 - [Security](docs/security.md)
 - [Conformance](docs/conformance.md)
+- [Real Lemonade validation](docs/real-lemonade-validation.md)
+- [Benchmarks](docs/benchmarks.md)
 - [Roadmap / TODO](docs/roadmap.md)
 - [Upstream integration](docs/upstream-integration.md)
 - [AMD Lemonade Challenge](docs/amd-challenge.md)
 
 ## Status
 
-**Experimental / pre-alpha.** The reference implementation now validates the core integration boundary. The project is moving into real-runtime validation, hardening and upstream-native design.
+**Experimental / pre-alpha.** The core integration is validated against both a deterministic mock and a real Lemonade server. The project is moving into conformance evidence, lifecycle hardening and upstream-native design.
 
 ## License
 

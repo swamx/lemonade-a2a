@@ -26,7 +26,7 @@ jobs:
       - name: Start Lemonade A2A
         env:
           LEMONADE_BASE_URL: http://127.0.0.1:13305/v1
-          LEMONADE_A2A_PUBLIC_URL: http://127.0.0.1:9000
+          LEMONADE_A2A_PUBLIC_URL: http://127.0.0.1:9100
         run: |
           lemonade-a2a > /tmp/lemonade-a2a.log 2>&1 &
           echo $! > /tmp/lemonade-a2a.pid

@@ -32,7 +32,7 @@ A2A should resemble Lemonade's existing protocol adapters (Anthropic, Ollama and
 | `server.py` | `server.cpp` registration + `a2a_api.cpp` |
 | `executor.py` | A2A request/task state logic in `a2a_api.cpp` |
 | `lemonade_client.py` | **Removed**; native adapter calls Router/backend infrastructure directly |
-| `agent_card.py` | Agent Card serializer/capability mapping |
+| `build_agent_card` in `server.py` | Agent Card serializer/capability mapping |
 | `config.py` | Lemonade CLI/config conventions |
 | Python tests | equivalent native/API integration tests |
 | TCK scripts | retained as black-box interoperability tests |

@@ -7,24 +7,10 @@ import sys
 import uuid
 
 import httpx
+from a2a_util import artifact_text
 
-A2A_BASE = os.getenv("A2A_BASE_URL", "http://127.0.0.1:9000")
+A2A_BASE = os.getenv("A2A_BASE_URL", "http://127.0.0.1:9100")
 EXPECTED = os.getenv("EXPECTED_TEXT", "MOCK_LEMONADE_OK")
-
-
-def collect_text(value) -> str:
-    """Collect text recursively from an A2A JSON response without assuming one SDK shape."""
-    pieces: list[str] = []
-    if isinstance(value, dict):
-        text = value.get("text")
-        if isinstance(text, str):
-            pieces.append(text)
-        for child in value.values():
-            pieces.append(collect_text(child))
-    elif isinstance(value, list):
-        for child in value:
-            pieces.append(collect_text(child))
-    return "".join(pieces)
 
 
 async def wait_ready(client: httpx.AsyncClient, url: str, attempts: int = 60) -> None:
@@ -56,7 +42,7 @@ async def main() -> None:
                 "message": {
                     "messageId": str(uuid.uuid4()),
                     "role": "ROLE_USER",
-                    "parts": [{"kind": "text", "text": "Return the deterministic response."}],
+                    "parts": [{"text": "Return the deterministic response."}],
                 }
             },
         }
@@ -69,7 +55,7 @@ async def main() -> None:
         body = response.json()
         if "error" in body:
             raise RuntimeError(json.dumps(body["error"], indent=2))
-        text = collect_text(body.get("result"))
+        text = artifact_text(body.get("result"))
         if EXPECTED not in text:
             raise AssertionError(f"expected {EXPECTED!r} in A2A result, got: {body!r}")
         print(f"PASS: Agent Card + A2A message/send + Lemonade SSE => {EXPECTED}")

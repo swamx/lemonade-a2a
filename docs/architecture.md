@@ -54,6 +54,15 @@ A deliberately small client targeting Lemonade's OpenAI-compatible API. It suppo
 
 Maps Lemonade SSE deltas into A2A streaming events while preserving ordering and cancellation. Backpressure and disconnect propagation are requirements, not optional optimizations.
 
+## Module map
+
+| Module | Responsibility |
+|---|---|
+| `config.py` | `Settings` loaded from environment, validated at construction |
+| `server.py` | FastAPI app, Agent Card, A2A routes (base URL plus legacy `/a2a/*` paths), HTTP+JSON response normalization |
+| `executor.py` | A2A `AgentExecutor`: input validation, Task/Artifact events, cancellation, backend-error to `FAILED` mapping |
+| `lemonade_client.py` | Pooled OpenAI-compatible client (`chat`, SSE `stream`); no A2A types |
+
 ## Dependency direction
 
 ```text
@@ -79,8 +88,10 @@ The Lemonade client must not depend on A2A SDK types. This makes future native i
 ### Sidecar/reference implementation
 
 ```text
-A2A client → lemonade-a2a :9000 → Lemonade :8000
+A2A client → lemonade-a2a :9100 → Lemonade :13305
 ```
+
+The adapter defaults to port 9100 because a stock Lemonade install already uses port 9000 for its WebSocket.
 
 This is the initial implementation because it allows fast standards validation without modifying upstream Lemonade.
 

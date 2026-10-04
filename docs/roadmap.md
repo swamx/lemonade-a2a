@@ -4,85 +4,106 @@ This roadmap tracks the path from the Python reference adapter to a potential na
 
 The architectural rule is simple: **A2A owns agent interoperability; Lemonade owns inference, model management, backend routing and hardware optimization.** The A2A layer must remain usable across local AI systems and must not depend on AMD-specific hardware or a separate reasoning-model stack.
 
-## Current state
+_Last reviewed: 2026-10-04._ A checked box means the item is implemented **and** verified (test, CI or recorded measurement); caveats are written next to the item.
 
-- [x] Core A2A/Lemonade integration boundary defined.
-- [x] Lemonade OpenAI-compatible client implemented.
-- [x] Agent Card factory and discovery implemented.
-- [x] Official A2A `AgentExecutor` binding implemented.
-- [x] Request handler and in-memory task store implemented.
-- [x] Text message → Lemonade inference mapping implemented.
-- [x] A2A artifacts/task lifecycle implemented.
-- [x] Health/readiness surface implemented.
-- [x] Lemonade SSE parser implemented.
-- [x] Streaming event bridge implemented.
-- [x] Deterministic Mock Lemonade E2E test implemented.
-- [x] Full black-box adapter stack exercised in CI.
-- [x] Cancellation propagated into the active inference coroutine.
-- [x] Python CI matrix established.
-- [x] A2A conformance workflow established.
-- [x] Direct-vs-A2A latency benchmark tooling implemented.
-- [x] CI and E2E green on current `main` after the latest cancellation/benchmark validation changes.
+## Where we are
 
-## P0 — Real Lemonade validation — NEXT
+| Area | Status |
+|---|---|
+| Protocol surface (Agent Card, JSON-RPC, HTTP+JSON, streaming, task lifecycle, cancellation) | Implemented, unit/E2E tested |
+| Deterministic mock E2E and CI (3.11-3.13, ruff, ruff format) | Green |
+| Real Lemonade validation (2026.40.0, llama.cpp GPU + CPU, Bonsai-1.7B) | Done, small sample |
+| Performance evidence (TTFT, latency, throughput, RSS/CPU) | First data points: +5 to +11 ms TTFT |
+| Failure handling (backend down/timeout/non-2xx, bad input) | Implemented and tested |
+| Official A2A TCK / ITK results | **Not run** (`docs/conformance-results.json` is a placeholder) |
+| Resource bounds, auth/TLS, backpressure, disconnect propagation | **Not implemented** |
+| NPU / ROCm / non-llama.cpp backends, larger models, concurrent load | **Not measured** |
+| Native Lemonade integration | Not started (by design, see gates below) |
 
-This is the highest-value next milestone. The deterministic mock proves our adapter behavior; now prove the integration against Lemonade itself.
+## Done
 
-- [ ] Add an opt-in integration test against a real Lemonade Server on port 13305.
-- [ ] Discover/select a real installed Lemonade model rather than hard-coding one.
-- [ ] Validate Agent Card → SendMessage → Lemonade → A2A artifact end-to-end.
-- [ ] Validate real SSE streaming and final artifact assembly.
-- [ ] Validate cancellation closes/stops the active real backend request.
-- [ ] Validate timeout and backend-error mapping.
-- [ ] Capture service logs and reproducible environment metadata on failure.
-- [ ] Document a one-command local integration-test workflow.
+- [x] Core A2A/Lemonade integration boundary, official `AgentExecutor`, request handler, in-memory task store.
+- [x] Lemonade OpenAI-compatible client with SSE parsing, one pooled HTTP client (removed ~350 ms of per-request overhead on Windows).
+- [x] Agent Card factory and discovery; hardware-agnostic content enforced by tests; example card checked against the generated card.
+- [x] JSON-RPC and HTTP+JSON served at the advertised base URL, legacy `/a2a/*` paths kept and tested (they were previously shadowed by the `/{tenant}` mount).
+- [x] Streaming bridge, cancellation into the active inference coroutine, `TASK_NOT_CANCELABLE` to HTTP 409, `application/json` REST errors.
+- [x] Input validation: non-text parts rejected, empty/oversized text is `InvalidParams`.
+- [x] Backend unreachable / timeout / non-2xx ends the task in `TASK_STATE_FAILED` with a sanitized message (previously a raw internal error with a stack trace).
+- [x] Validated `Settings` (port range, positive limits), configurable timeout and input limit, version read from package metadata.
+- [x] Removed the stale duplicate Agent Card builder.
+- [x] Default port moved from 9000 to 9100 (9000 is Lemonade's WebSocket port).
+- [x] CI: ruff, ruff format check, pytest matrix, mock-Lemonade black-box job, protocol unit tests.
+- [x] Configurable mock Lemonade (`MOCK_LEMONADE_RESPONSES`, `MOCK_LEMONADE_TOKEN_DELAY`) without suite-specific hardcoding.
 
-**Exit criterion:** an official A2A client can discover the adapter, invoke a real Lemonade-hosted model, stream output, cancel work, and observe correct task states.
+## P0 — Conformance evidence — NEXT
+
+The adapter has been adjusted to TCK expectations, but there is no recorded result. This is now the biggest evidence gap.
+
+- [ ] Run the official A2A TCK against the live adapter (mock backend, pinned TCK revision).
+- [ ] Run the A2A Inspector and/or ITK cross-SDK scenarios.
+- [ ] Populate `docs/conformance-results.json` from reproducible runs (TCK commit, adapter commit, pass/fail/skip per transport).
+- [ ] Fix or document every failing case with an upstream link where relevant.
+- [ ] Add an opt-in CI job that runs the pinned TCK.
+
+**Exit criterion:** a published pass/fail matrix tied to exact TCK and adapter commits.
+
+## P0 — Real Lemonade validation — mostly done
+
+- [x] Real-Lemonade validator (`scripts/real_lemonade_e2e.py`): model discovery, Agent Card → `SendMessage` → artifact.
+- [x] Real SSE streaming and final artifact assembly (via `benchmarks/benchmark_evidence.py`).
+- [x] Backend-error and timeout mapping (unit-tested; unreachable backend also checked by hand).
+- [x] Cancellation reaches `TASK_STATE_CANCELED` on a real backend.
+- [ ] Verify cancellation actually **stops the real backend request** (e.g. Lemonade/llama.cpp stops generating), not only the adapter task.
+- [ ] Convert the validator into an opt-in `pytest` integration test.
+- [ ] Capture service logs and environment metadata automatically on failure.
+- [ ] One-command local workflow (start adapter, run validator, run benchmark).
+- [ ] Validate with an official A2A client, not only the in-repo scripts.
 
 ## P0 — Performance evidence
 
-- [x] Direct Lemonade vs A2A total-latency benchmark harness.
-- [x] Measure time-to-first-token (TTFT) for direct vs A2A streaming (harness done; mock-backed protocol-overhead run recorded in `docs/benchmarks.md`; real-model runs recorded for llama.cpp GPU and CPU).
-- [ ] Measure A2A protocol overhead independently from model generation time.
-- [ ] Report median and p95 across repeated runs.
-- [ ] Measure idle RSS/CPU of the Python reference adapter.
+- [x] Direct vs A2A harness: TTFT, total latency, chunks/sec, cancellation, adapter RSS/CPU, median and p95.
+- [x] Protocol overhead measured independently of generation time (mock backend: ~+10 ms TTFT).
+- [x] First real results: Bonsai-1.7B, llama.cpp GPU (+5 ms TTFT) and CPU (+11 ms TTFT); adapter ~69 MB RSS, ~0-1% idle CPU.
+- [ ] Larger models and longer prompts/outputs.
+- [ ] Concurrent tasks (throughput and latency under load).
+- [ ] More runs and more than one machine (current sample is 10 runs on one laptop).
 - [ ] Define an acceptable overhead budget before native implementation.
 
-The objective is not to optimize the Python adapter indefinitely. It is to establish a baseline that tells us whether native Lemonade integration is justified and what it must improve.
+The objective is not to optimize the Python adapter indefinitely; it is to establish a baseline that tells us whether native Lemonade integration is justified and what it must improve.
 
 ## P1 — Lifecycle and resilience
 
 - [x] Active inference cancellation propagation.
+- [x] Request timeout policy (`LEMONADE_TIMEOUT_SECONDS`).
+- [x] Lemonade unavailable / non-2xx mapped to `FAILED` (model-not-found goes through the generic non-2xx path; no dedicated message).
 - [ ] Bounded streaming queues/backpressure.
-- [ ] Client disconnect propagation.
-- [ ] Request timeout policy.
-- [ ] Lemonade unavailable/model unavailable mapping.
+- [ ] Client disconnect propagation to the backend request.
 - [ ] Concurrent task isolation tests.
 - [ ] Repeated cancellation/race-condition tests.
 - [ ] Graceful server shutdown with active tasks.
+- [ ] Close partial artifacts cleanly when a stream fails mid-way.
 
-## P1 — A2A compatibility and security
+## P1 — Security and compatibility hardening
 
-- [x] Automated conformance checks in CI.
-- [ ] Run official A2A Inspector/TCK against the live adapter.
-- [ ] Publish the exact compatibility pass/fail matrix.
+- [x] Automated smoke conformance in CI.
+- [x] Message size limit (`LEMONADE_A2A_MAX_INPUT_CHARS`).
+- [ ] Limits on number/size of parts, concurrent tasks, task lifetime and stored history (the in-memory task store is unbounded).
 - [ ] Fuzz malformed messages, parts and metadata.
-- [ ] Add message/artifact/request-size limits.
 - [ ] Validate safe URL/file handling before enabling richer parts.
 - [ ] Define local-only, LAN and externally exposed security profiles.
-- [ ] Add authentication/TLS guidance for non-loopback deployments.
+- [ ] Authentication/TLS guidance for non-loopback deployments.
+- [ ] Publish a formal security policy.
 
 ## P1 — Prove local-AI-system portability
 
 A2A must remain independent of the accelerator selected by Lemonade.
 
-- [ ] Validate on at least two materially different Lemonade backend configurations.
-- [ ] Include a CPU or generic backend validation path where practical.
-- [ ] Include an accelerated GPU/NPU backend validation path where practical.
-- [ ] Verify no A2A protocol behavior depends on AMD-specific metadata.
+- [x] Two materially different execution paths on one machine: llama.cpp CPU and llama.cpp GPU (auto), same adapter and behavior.
+- [x] No A2A protocol behavior or Agent Card content depends on AMD-specific metadata (tested).
+- [ ] An engine other than llama.cpp (e.g. ONNX Runtime / Ryzen AI / FastFlowLM) and an NPU path where hardware allows.
+- [ ] ROCm and Metal paths where hardware allows.
 - [ ] Keep optional hardware metadata informational and extension-based.
-- [ ] Use **local AI system** terminology in generic architecture documentation.
-- [ ] Reserve AMD-specific language for AMD challenge/optimization material where it is actually relevant.
+- [ ] Use **local AI system** terminology in generic architecture documentation; reserve AMD-specific language for AMD challenge/optimization material.
 
 ## P2 — Lemonade-native architecture proposal
 
@@ -109,19 +130,21 @@ A2A clients                 Existing API clients
              CPU / GPU / NPU
 ```
 
+Start this only after the conformance gate above is closed.
+
 - [ ] Map A2A endpoints onto the current Lemonade C++ HTTP layer.
 - [ ] Identify the smallest reusable A2A core independent of Python SDK internals.
 - [ ] Define Agent Card generation from Lemonade model/server capabilities.
 - [ ] Define Task/Artifact state ownership and lifecycle inside `lemond`.
 - [ ] Define streaming bridge from Lemonade generation events to A2A events.
 - [ ] Define cancellation from A2A task → Lemonade request/backend execution.
-- [ ] Decide whether A2A shares Lemonade's primary port or uses a configurable listener.
+- [ ] Decide whether A2A shares Lemonade's primary port or uses a configurable listener (the sidecar already had to avoid Lemonade's WebSocket port 9000).
 - [ ] Align CLI/configuration naming with Lemonade maintainers rather than assuming `--a2a`.
 - [ ] Write an upstream design proposal before a large native implementation.
 
 ## P2 — Native prototype
 
-Only start this after the real-runtime, compatibility and performance gates above are documented.
+Only start this after the conformance, lifecycle and performance gates above are documented.
 
 - [ ] Prototype a minimal native C++ Agent Card endpoint.
 - [ ] Prototype native SendMessage → Lemonade Router execution.
@@ -153,11 +176,12 @@ If Lemonade gains advanced model routing, scheduling or reasoning features, the 
 
 ## Recommended execution order
 
-1. **Real Lemonade E2E** — prove the reference implementation against actual Lemonade.
-2. **TTFT + lifecycle hardening** — quantify overhead and close cancellation/timeout/backpressure gaps.
-3. **Official A2A TCK/Inspector** — establish protocol evidence.
-4. **Cross-backend validation** — prove that the architecture is for local AI systems, not one accelerator.
-5. **Upstream design proposal** — map the proven behavior into Lemonade's C++ server/router.
-6. **Native prototype** — implement only the smallest accepted vertical slice.
+1. ~~Real Lemonade E2E~~ — done (small sample).
+2. ~~TTFT measurement~~ — done; extend to larger models and concurrency.
+3. **Official A2A TCK/Inspector** — establish protocol evidence. ← next
+4. **Lifecycle hardening** — bounded state, backpressure, disconnects, backend-side cancellation proof.
+5. **Cross-backend validation** — a second engine and an NPU/ROCm path.
+6. **Upstream design proposal** — map the proven behavior into Lemonade's C++ server/router.
+7. **Native prototype** — implement only the smallest accepted vertical slice.
 
 This ordering keeps the repository evidence-driven and maximizes the chance that the work can be adopted upstream.

@@ -10,7 +10,7 @@ Prove the same A2A adapter that passes deterministic CI also works against a rea
 A2A client
     │ A2A v1
     ▼
-Lemonade A2A :9000
+Lemonade A2A :9100
     │ OpenAI-compatible API
     ▼
 Lemonade Server :13305
@@ -30,7 +30,7 @@ Then start the adapter:
 
 ```bash
 export LEMONADE_BASE_URL=http://127.0.0.1:13305/v1
-export LEMONADE_A2A_PUBLIC_URL=http://127.0.0.1:9000
+export LEMONADE_A2A_PUBLIC_URL=http://127.0.0.1:9100
 lemonade-a2a
 ```
 
@@ -57,18 +57,21 @@ A successful validation must show:
 - the request reaches real Lemonade inference;
 - model-generated text returns as an A2A result/artifact.
 
-## Follow-up gates
+## Status
 
-After the basic real-runtime test succeeds:
+Validated on 2026-10-04 against Lemonade Server 2026.40.0 with `Bonsai-1.7B-gguf` on llama.cpp GPU and CPU. Measurements are in [benchmarks.md](benchmarks.md).
 
-1. capture streaming TTFT direct vs A2A;
-2. cancel an in-flight A2A task and verify the real Lemonade request stops;
-3. validate backend/model-unavailable and timeout behavior;
-4. run the official A2A compatibility tooling against the live adapter;
-5. repeat on materially different Lemonade backend configurations.
+| Gate | Status |
+|---|---|
+| Real Lemonade + A2A `SendMessage` end to end | Done (`scripts/real_lemonade_e2e.py`) |
+| Streaming TTFT, direct vs A2A | Done (`benchmarks/benchmark_evidence.py`) |
+| Cancel an in-flight task | Done: task reaches `TASK_STATE_CANCELED`. Whether the real Lemonade backend request also stops is not yet verified |
+| Backend unavailable / timeout behavior | Done: task ends `FAILED` (unit-tested; unreachable backend also checked by hand). Model-not-found is covered only through the generic non-2xx path |
+| Official A2A TCK/Inspector against the live adapter | Not run |
+| Materially different backends | CPU and GPU (llama.cpp) done; NPU/ROCm not covered |
 
 ## CI policy
 
 The real-model validation should remain opt-in or self-hosted because hosted CI should not download large models or assume accelerator availability. Deterministic Mock Lemonade remains the mandatory pull-request gate.
 
-> **Port note:** a default Lemonade install already uses port 9000 for its WebSocket. If the adapter fails to bind, use `LEMONADE_A2A_PORT=9100` and `LEMONADE_A2A_PUBLIC_URL=http://127.0.0.1:9100`, and pass `--a2a http://127.0.0.1:9100` to the scripts. Measured results are in [benchmarks.md](benchmarks.md).
+> **Port note:** a default Lemonade install already uses port 9000 for its WebSocket, so the adapter defaults to 9100. If you change `LEMONADE_A2A_PORT`, set a matching `LEMONADE_A2A_PUBLIC_URL` and pass `--a2a <url>` to the scripts.

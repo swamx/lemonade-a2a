@@ -93,6 +93,21 @@ Future mappings may include:
 - structured JSON → data part/artifact;
 - code → text artifact with media-type metadata.
 
+## Implemented behavior
+
+| Situation | Result |
+|---|---|
+| Text parts only | Joined and sent as one user message |
+| Any non-text part (`raw`, `url`, `data`) | `ContentTypeNotSupportedError` |
+| Empty or whitespace-only text | `InvalidParamsError` |
+| Text longer than `LEMONADE_A2A_MAX_INPUT_CHARS` (default 100000) | `InvalidParamsError` |
+| Lemonade unreachable, timeout (`LEMONADE_TIMEOUT_SECONDS`, default 120) or non-2xx | Task ends in `TASK_STATE_FAILED` with a short sanitized message; details go to the server log only |
+| `CancelTask` on a running task | Inference coroutine cancelled, task `TASK_STATE_CANCELED` |
+| `CancelTask` on a finished task | HTTP+JSON: 409 (`TASK_NOT_CANCELABLE`); JSON-RPC: error response |
+| Unsupported `A2A-Version` | Version-not-supported error |
+
+Streaming emits one artifact (`lemonade-response`) chunk per Lemonade delta, then a closing empty chunk with `last_chunk=true`. Bounded queues and client-disconnect propagation are not yet implemented (see the roadmap).
+
 ## Errors
 
 Backend HTTP failures, malformed model responses, unsupported A2A parts, timeouts, and cancellations must be mapped to protocol-appropriate failures without leaking local filesystem paths, environment variables, API keys, stack traces, or model-server internals.

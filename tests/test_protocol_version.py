@@ -15,7 +15,7 @@ def test_agent_card_has_jsonrpc_and_http_json_bindings() -> None:
     bindings = {interface.protocol_binding for interface in card.supported_interfaces}
     assert "JSONRPC" in bindings
     assert "HTTP+JSON" in bindings
-    assert all(interface.url == "http://localhost:9000" for interface in card.supported_interfaces)
+    assert all(interface.url == "http://localhost:9100" for interface in card.supported_interfaces)
 
 
 def test_protocol_routes_match_the_advertised_base_url() -> None:

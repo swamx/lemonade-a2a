@@ -16,6 +16,7 @@ from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
 
+from . import __version__
 from .config import Settings
 from .executor import LemonadeAgentExecutor
 from .lemonade_client import LemonadeClient
@@ -27,7 +28,7 @@ def build_agent_card(settings: Settings) -> AgentCard:
     return AgentCard(
         name=settings.agent_name,
         description=settings.agent_description,
-        version="0.1.0",
+        version=__version__,
         capabilities=AgentCapabilities(streaming=True, push_notifications=False),
         default_input_modes=["text"],
         default_output_modes=["text", "task-status"],
@@ -95,9 +96,11 @@ async def normalize_rest_response(request, call_next):
 def create_app() -> FastAPI:
     settings = Settings.from_env()
     agent_card = build_agent_card(settings)
-    client = LemonadeClient(settings.lemonade_base_url, settings.model)
+    client = LemonadeClient(
+        settings.lemonade_base_url, settings.model, timeout=settings.request_timeout_seconds
+    )
     request_handler = DefaultRequestHandler(
-        agent_executor=LemonadeAgentExecutor(client),
+        agent_executor=LemonadeAgentExecutor(client, max_input_chars=settings.max_input_chars),
         task_store=InMemoryTaskStore(),
         agent_card=agent_card,
     )
@@ -111,7 +114,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
         title="Lemonade A2A",
         description="A2A v1 protocol surface for Lemonade local inference.",
-        version="0.1.0",
+        version=__version__,
     )
 
     app.middleware("http")(normalize_rest_response)
