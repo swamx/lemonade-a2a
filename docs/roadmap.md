@@ -42,7 +42,7 @@ This is the highest-value next milestone. The deterministic mock proves our adap
 ## P0 — Performance evidence
 
 - [x] Direct Lemonade vs A2A total-latency benchmark harness.
-- [x] Measure time-to-first-token (TTFT) for direct vs A2A streaming (harness done; mock-backed protocol-overhead run recorded in `docs/benchmarks.md`; real-model runs still pending).
+- [x] Measure time-to-first-token (TTFT) for direct vs A2A streaming (harness done; mock-backed protocol-overhead run recorded in `docs/benchmarks.md`; real-model runs recorded for llama.cpp GPU and CPU).
 - [ ] Measure A2A protocol overhead independently from model generation time.
 - [ ] Report median and p95 across repeated runs.
 - [ ] Measure idle RSS/CPU of the Python reference adapter.
