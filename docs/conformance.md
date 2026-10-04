@@ -12,7 +12,7 @@ Lemonade A2A targets the stable A2A 1.0 protocol family. Patch releases of the s
 - Agent Card discovery;
 - Agent Card advertises protocol version `1.0`;
 - requests carry `A2A-Version: 1.0`;
-- JSON-RPC `message/send` succeeds without a protocol error.
+- JSON-RPC `SendMessage` succeeds without a protocol error.
 
 This suite is intentionally small and is not presented as protocol certification.
 

@@ -18,7 +18,13 @@ async def healthz() -> dict[str, str]:
 async def chat_completions(request: Request):
     payload = await request.json()
     stream = bool(payload.get("stream"))
-    text = "MOCK_LEMONADE_OK"
+    messages = payload.get("messages") or []
+    tck_text_artifact = any(
+        message.get("content") == "TCK artifact test"
+        for message in messages
+        if isinstance(message, dict)
+    )
+    text = "Generated text content" if tck_text_artifact else "MOCK_LEMONADE_OK"
 
     if not stream:
         return JSONResponse(
@@ -30,7 +36,8 @@ async def chat_completions(request: Request):
         )
 
     async def events():
-        for token in ["MOCK_", "LEMONADE_", "OK"]:
+        tokens = [text] if tck_text_artifact else ["MOCK_", "LEMONADE_", "OK"]
+        for token in tokens:
             if await request.is_disconnected():
                 return
             event = {

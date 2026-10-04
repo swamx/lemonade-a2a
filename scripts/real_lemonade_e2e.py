@@ -71,7 +71,7 @@ async def main(args: argparse.Namespace) -> None:
             },
         }
         response = await client.post(
-            f"{args.a2a.rstrip('/')}/a2a/jsonrpc",
+            args.a2a.rstrip("/"),
             headers={"A2A-Version": "1.0"},
             json=payload,
         )

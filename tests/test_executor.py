@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from a2a.types import Message, Part, Role
+from a2a.utils.errors import ContentTypeNotSupportedError
 
 from lemonade_a2a.executor import LemonadeAgentExecutor
 
@@ -46,3 +47,20 @@ async def test_executor_emits_task_and_completion_events() -> None:
     assert len({event.artifact.artifact_id for event in artifact_events}) == 1
     assert [event.append for event in artifact_events] == [False, True, True]
     assert artifact_events[-1].last_chunk is True
+
+
+@pytest.mark.asyncio
+async def test_executor_rejects_non_text_parts() -> None:
+    context = SimpleNamespace(
+        message=Message(
+            message_id="m1",
+            role=Role.ROLE_USER,
+            parts=[Part(raw=b"tck", media_type="application/x-unsupported-tck-type")],
+        ),
+        task_id="t1",
+        context_id="c1",
+        get_user_input=lambda: "",
+    )
+
+    with pytest.raises(ContentTypeNotSupportedError):
+        await LemonadeAgentExecutor(FakeClient()).execute(context, FakeQueue())

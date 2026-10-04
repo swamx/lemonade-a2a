@@ -44,7 +44,7 @@ async def check(base_url: str) -> None:
                 }
             },
         }
-        response = await client.post(f"{base_url}/a2a/jsonrpc", json=payload)
+        response = await client.post(base_url, json=payload)
         response.raise_for_status()
         body = response.json()
         assert body.get("jsonrpc") == "2.0"

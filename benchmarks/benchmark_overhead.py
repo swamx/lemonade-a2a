@@ -66,7 +66,7 @@ async def run(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--direct-url", default="http://127.0.0.1:13305/v1/chat/completions")
-    parser.add_argument("--a2a-url", default="http://127.0.0.1:9000/a2a/jsonrpc")
+    parser.add_argument("--a2a-url", default="http://127.0.0.1:9000")
     parser.add_argument(
         "--model",
         default=os.getenv("LEMONADE_MODEL", ""),

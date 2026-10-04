@@ -61,7 +61,7 @@ async def main() -> None:
             },
         }
         response = await client.post(
-            f"{A2A_BASE}/a2a/jsonrpc",
+            A2A_BASE,
             headers={"A2A-Version": "1.0"},
             json=payload,
         )
