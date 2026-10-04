@@ -26,6 +26,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+DEVIATION_NOTES = {
+    "CORE-HIST-005": "TCK test artifact: follow-up messages reuse one messageId, which the SDK deduplicates",
+    "CORE-HIST-006": "TCK test artifact: follow-up messages reuse one messageId, which the SDK deduplicates",
+}
+
 
 def git_sha(path: Path) -> str | None:
     try:
@@ -129,6 +134,7 @@ def main() -> int:
         ],
         "scope": "protocol surface (real server layer + TCK scenario executor); not Lemonade inference",
         "known_deviations": summary["known_deviations"],
+        "deviation_notes": DEVIATION_NOTES,
         "transports": summary["requirements_by_transport"],
         "test_cases": summary["test_cases"],
         "tck_summary": summary["tck_summary"],

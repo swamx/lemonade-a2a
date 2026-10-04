@@ -1,0 +1,7 @@
+{
+  "name": "lemonade-a2a-interop",
+  "private": true,
+  "type": "module",
+  "description": "Independent-client interoperability checks for Lemonade A2A",
+  "dependencies": { "@a2a-js/sdk": "1.3.0" }
+}
