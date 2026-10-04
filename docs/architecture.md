@@ -62,6 +62,8 @@ Maps Lemonade SSE deltas into A2A streaming events while preserving ordering and
 | `server.py` | FastAPI app, Agent Card, A2A routes (base URL plus legacy `/a2a/*` paths), HTTP+JSON response normalization |
 | `executor.py` | A2A `AgentExecutor`: input validation, Task/Artifact events, cancellation, backend-error to `FAILED` mapping |
 | `lemonade_client.py` | Pooled OpenAI-compatible client (`chat`, SSE `stream`); no A2A types |
+| `task_store.py` | `BoundedTaskStore`: in-memory store evicting the oldest finished tasks |
+| `tck/tck_sut.py` | Test-only: real server layer + TCK scenario executor for conformance runs |
 
 ## Dependency direction
 

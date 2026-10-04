@@ -83,12 +83,13 @@ See [docs/architecture.md](docs/architecture.md).
 Validated so far (details: [roadmap](docs/roadmap.md), [benchmarks](docs/benchmarks.md)):
 
 - official A2A SDK integration with JSON-RPC and HTTP+JSON bindings served at the base URL (legacy `/a2a/jsonrpc` and `/a2a/rest` paths kept);
-- automatic Agent Card, SSE streaming into A2A artifacts, cancellation into the running inference, backend failures mapped to `FAILED` tasks;
-- input validation and limits (non-text parts rejected, size limit, backend timeout);
+- automatic Agent Card, SSE streaming into A2A artifacts, cancellation that stops the real backend generation, backend failures mapped to `FAILED` tasks;
+- resource bounds (input size/parts, per-task deadline, concurrency cap with `REJECTED`, bounded task store), optional API-key auth, TLS, graceful shutdown;
+- the **official A2A TCK** against the protocol surface: 157 passed, 0 failed, 4 expected-fail (SHOULD), the rest skipped for capabilities not declared (see [conformance](docs/conformance.md) for scope);
 - CI on Python 3.11-3.13 (ruff, ruff format, pytest) plus a deterministic mock-Lemonade end-to-end job;
-- a **real Lemonade 2026.40.0** run (llama.cpp GPU and CPU): the end-to-end validator passes, A2A adds about +5 to +11 ms TTFT, cancellation works.
+- a **real Lemonade 2026.40.0** setup on llama.cpp CUDA, Vulkan and CPU with a 1.7B and a 4B model: the validator passes, A2A adds roughly 5-15 ms TTFT, and concurrent load (up to 8) shows no adapter-added cost (throughput is bounded by the backend).
 
-Not yet done: official A2A TCK/ITK results, NPU/ROCm backends, concurrent-load and larger-model measurements, authentication/TLS, bounded task state. The next milestone is conformance evidence and lifecycle hardening, followed by the upstream-native design.
+Not yet done: ITK/cross-SDK interoperability, NPU/ROCm and non-llama.cpp backends (no hardware available so far), stream-level backpressure, per-user authorization. The next milestone is cross-backend evidence on AMD hardware and the upstream-native design.
 
 ## North-star developer experience
 
@@ -145,7 +146,13 @@ The adapter expects a running Lemonade server exposing an OpenAI-compatible endp
 | `LEMONADE_A2A_PUBLIC_URL` | `http://localhost:9100` | URL advertised in the Agent Card; keep in sync with host/port |
 | `LEMONADE_A2A_AGENT_NAME` / `LEMONADE_A2A_AGENT_DESCRIPTION` | see `config.py` | Agent Card text |
 | `LEMONADE_TIMEOUT_SECONDS` | `120` | Backend request timeout |
-| `LEMONADE_A2A_MAX_INPUT_CHARS` | `100000` | Maximum accepted input text |
+| `LEMONADE_A2A_MAX_INPUT_CHARS` / `LEMONADE_A2A_MAX_INPUT_PARTS` | `100000` / `32` | Maximum input text / message parts |
+| `LEMONADE_A2A_MAX_TASK_SECONDS` | `600` | Per-task deadline (task fails when exceeded) |
+| `LEMONADE_A2A_MAX_CONCURRENT_TASKS` | `8` | Running-task cap; extra tasks are `REJECTED` |
+| `LEMONADE_A2A_MAX_STORED_TASKS` | `1000` | Task store size; oldest finished tasks are evicted |
+| `LEMONADE_A2A_API_KEY` | empty (no auth) | Require `Authorization: Bearer` / `X-API-Key`; Agent Card and `/healthz` stay public |
+| `LEMONADE_API_KEY` | empty | Key sent to a protected Lemonade server |
+| `LEMONADE_A2A_SSL_CERTFILE` / `LEMONADE_A2A_SSL_KEYFILE` | empty | Serve HTTPS (set both; use an `https://` public URL) |
 
 Invalid values fail at startup. See [examples/](examples/) for an Agent Card and a client, and [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) for validating against a real Lemonade install.
 
@@ -211,10 +218,10 @@ Before implementing the native C++ surface, the reference adapter should pass re
 
 ## Recommended next steps
 
-1. Run the official A2A TCK/Inspector against the live adapter and publish the pass/fail matrix.
-2. Add lifecycle hardening: bounded streaming/task state, client-disconnect propagation, concurrent-task and cancellation-race tests, and verify cancellation stops the real backend request.
-3. Extend benchmarks: larger models, NPU/ROCm backends, concurrent load.
-4. Add authentication/TLS guidance for non-loopback deployments.
+1. Run ITK / cross-SDK interoperability scenarios, and root-cause the two SHOULD-level history deviations.
+2. Validate on AMD hardware: NPU and ROCm paths and a non-llama.cpp engine (not possible on the NVIDIA/Intel machine used so far).
+3. Add stream-level backpressure, per-user task isolation and rate limiting.
+4. Add an opt-in CI job that runs the pinned TCK.
 5. Draft the native Lemonade A2A API boundary and map it onto Lemonade's HTTP/router architecture.
 6. Only then prototype the native C++ A2A endpoint and propose it upstream.
 
@@ -234,7 +241,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 
 ## Status
 
-**Experimental / pre-alpha.** The core integration is validated against both a deterministic mock and a real Lemonade server. The project is moving into conformance evidence, lifecycle hardening and upstream-native design.
+**Experimental / pre-alpha.** The protocol surface passes the official TCK, the integration is validated against a deterministic mock and a real Lemonade server, and the adapter has basic resource bounds and optional auth/TLS. The project is moving into AMD-hardware evidence, interoperability testing and upstream-native design.
 
 ## License
 

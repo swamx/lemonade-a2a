@@ -67,13 +67,21 @@ def summarize(tck_dir: Path) -> dict:
 
     cases = collections.Counter()
     for case in ET.parse(tck_dir / "reports" / "junitreport.xml").getroot().iter("testcase"):
+        skipped = case.find("skipped")
         if case.find("failure") is not None or case.find("error") is not None:
             cases["failed"] += 1
-        elif case.find("skipped") is not None:
-            cases["skipped_or_xfailed"] += 1
+        elif skipped is not None:
+            # pytest.xfail (SHOULD-level deviations) is reported as a typed skip.
+            cases["xfailed" if "xfail" in (skipped.get("type") or "") else "skipped"] += 1
         else:
             cases["passed"] += 1
+    deviations = sorted(
+        f"{req_id} ({req['level']}) on {', '.join(t for t, st in req['transports'].items() if st == 'FAIL')}"
+        for req_id, req in report["per_requirement"].items()
+        if "FAIL" in req["transports"].values()
+    )
     return {
+        "known_deviations": deviations,
         "tck_summary": report["summary"],
         "requirements_by_transport": dict(transports),
         "test_cases": dict(cases),
@@ -111,7 +119,16 @@ def main() -> int:
         "itk_commit": None,
         "run_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "status": "failed" if summary["test_cases"].get("failed") else "passed",
+        "notes": [
+            (
+                "skipped = capability not declared (gRPC, push notifications, extended card) "
+                "or not applicable (streaming agent); "
+                "xfailed = SHOULD-level deviations listed above."
+            ),
+            "overall_compatibility in tck_summary counts skipped requirements as not passing.",
+        ],
         "scope": "protocol surface (real server layer + TCK scenario executor); not Lemonade inference",
+        "known_deviations": summary["known_deviations"],
         "transports": summary["requirements_by_transport"],
         "test_cases": summary["test_cases"],
         "tck_summary": summary["tck_summary"],

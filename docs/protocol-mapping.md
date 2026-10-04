@@ -100,13 +100,17 @@ Future mappings may include:
 | Text parts only | Joined and sent as one user message |
 | Any non-text part (`raw`, `url`, `data`) | `ContentTypeNotSupportedError` |
 | Empty or whitespace-only text | `InvalidParamsError` |
-| Text longer than `LEMONADE_A2A_MAX_INPUT_CHARS` (default 100000) | `InvalidParamsError` |
+| Text longer than `LEMONADE_A2A_MAX_INPUT_CHARS` (default 100000) or more than `LEMONADE_A2A_MAX_INPUT_PARTS` (default 32) parts | `InvalidParamsError` |
+| More than `LEMONADE_A2A_MAX_CONCURRENT_TASKS` (default 8) running tasks | New task ends `TASK_STATE_REJECTED` ("retry later") |
+| Task still running after `LEMONADE_A2A_MAX_TASK_SECONDS` (default 600) | `TASK_STATE_FAILED` ("time limit") |
+| Non-JSON `Content-Type` on a request body | JSON-RPC `-32005`; HTTP+JSON 415 `CONTENT_TYPE_NOT_SUPPORTED` |
+| Missing/invalid API key (when `LEMONADE_A2A_API_KEY` is set) | HTTP 401 `UNAUTHENTICATED` on every binding; Agent Card and `/healthz` stay public |
 | Lemonade unreachable, timeout (`LEMONADE_TIMEOUT_SECONDS`, default 120) or non-2xx | Task ends in `TASK_STATE_FAILED` with a short sanitized message; details go to the server log only |
 | `CancelTask` on a running task | Inference coroutine cancelled, task `TASK_STATE_CANCELED` |
 | `CancelTask` on a finished task | HTTP+JSON: 409 (`TASK_NOT_CANCELABLE`); JSON-RPC: error response |
 | Unsupported `A2A-Version` | Version-not-supported error |
 
-Streaming emits one artifact (`lemonade-response`) chunk per Lemonade delta, then a closing empty chunk with `last_chunk=true`. Bounded queues and client-disconnect propagation are not yet implemented (see the roadmap).
+Streaming emits one artifact (`lemonade-response`) chunk per Lemonade delta, then a closing empty chunk with `last_chunk=true`. A client disconnecting from a stream does **not** cancel the task: A2A tasks outlive connections and can be resubscribed, so the task runs to completion or its deadline, and `CancelTask` stops it explicitly. Stream-level queue bounds are not implemented.
 
 ## Errors
 

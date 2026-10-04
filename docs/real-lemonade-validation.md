@@ -65,10 +65,11 @@ Validated on 2026-10-04 against Lemonade Server 2026.40.0 with `Bonsai-1.7B-gguf
 |---|---|
 | Real Lemonade + A2A `SendMessage` end to end | Done (`scripts/real_lemonade_e2e.py`) |
 | Streaming TTFT, direct vs A2A | Done (`benchmarks/benchmark_evidence.py`) |
-| Cancel an in-flight task | Done: task reaches `TASK_STATE_CANCELED`. Whether the real Lemonade backend request also stops is not yet verified |
+| Cancel an in-flight task | Done: task reaches `TASK_STATE_CANCELED` and the real backend stops generating (`benchmarks/cancellation_proof.py`: 30.9 s queued behind a running generation vs 177 ms right after `CancelTask`) |
 | Backend unavailable / timeout behavior | Done: task ends `FAILED` (unit-tested; unreachable backend also checked by hand). Model-not-found is covered only through the generic non-2xx path |
-| Official A2A TCK/Inspector against the live adapter | Not run |
-| Materially different backends | CPU and GPU (llama.cpp) done; NPU/ROCm not covered |
+| Official A2A TCK against the protocol surface | Done (see [conformance.md](conformance.md)); not run through a real model, by design |
+| Materially different backends | llama.cpp CUDA, Vulkan and CPU, two models (Bonsai-1.7B, Gemma-3-4B); NPU, ROCm and non-llama.cpp engines not covered (no hardware) |
+| Concurrent load | Done up to N = 8 on GPU backends: Lemonade serializes, the adapter adds no measurable cost |
 
 ## CI policy
 

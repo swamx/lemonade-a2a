@@ -42,6 +42,7 @@ CI runs exactly these (Python 3.11-3.13), plus a mock-Lemonade black-box job.
 | Unit / in-process | `pytest` | nothing |
 | Black-box vs mock Lemonade | `python scripts/blackbox_e2e.py` | mock (`tests/mock_lemonade.py`) and adapter running |
 | Smoke conformance | `python scripts/check_a2a_conformance.py` | adapter running |
+| Official A2A TCK | `python scripts/run_tck.py --tck-dir <a2a-tck>` | a2a-tck clone with its own venv, see [docs/conformance.md](docs/conformance.md) |
 | Real Lemonade | `python scripts/real_lemonade_e2e.py` | real Lemonade + model, see [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) |
 | Benchmarks | `python benchmarks/benchmark_evidence.py` | real Lemonade + adapter, see [docs/benchmarks.md](docs/benchmarks.md) |
 
