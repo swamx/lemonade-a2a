@@ -9,7 +9,8 @@ First release of the Python reference adapter: an A2A 1.0 protocol surface in fr
 - **A2A 1.0** Agent Card, JSON-RPC and HTTP+JSON (served at the base URL; legacy `/a2a/jsonrpc` and `/a2a/rest` kept), SSE streaming, task lifecycle, cancellation and error mapping.
 - **Cancellation reaches the backend**: `CancelTask` stops generation on the real Lemonade server.
 - **Failure handling**: backend errors, timeouts and bad input become well-formed A2A errors or `FAILED`/`REJECTED` tasks with sanitized messages.
-- **Resource bounds and security**: input size/part limits, per-task deadline, concurrency cap, bounded task store, optional API-key auth, TLS, graceful shutdown.
+- **Resource bounds and security**: input size/part limits, request-body limit (413), per-task deadline, concurrency cap, bounded task store, optional API-key auth, TLS, no public OpenAPI/docs pages, security headers, graceful shutdown.
+- **Automated gates**: CodeQL, bandit, pip-audit, secret scanning, dependency review and a 95% coverage threshold (99% measured) on every pull request.
 - **Evidence** (see `docs/`):
   - official A2A TCK against the protocol surface: 157 passed, 0 failed, 4 expected-fail (SHOULD, a TCK test artifact), the rest skipped for undeclared capabilities; `docs/conformance-results.json`;
   - independent clients (A2A CLI, JS SDK, Inspector validators) over both bindings, mock and real Lemonade; `docs/interoperability.md`;

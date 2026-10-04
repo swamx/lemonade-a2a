@@ -39,6 +39,10 @@ The safest default is:
 | Key forwarded to a protected Lemonade backend (`LEMONADE_API_KEY`) | Implemented |
 | TLS in-process (`LEMONADE_A2A_SSL_CERTFILE` / `LEMONADE_A2A_SSL_KEYFILE`) or at a reverse proxy | Implemented (uvicorn); certificates are the operator's responsibility |
 | Non-JSON request bodies rejected (`-32005` / HTTP 415) | Implemented |
+| Request body size limit (`LEMONADE_A2A_MAX_REQUEST_BYTES`, default 1 MiB): HTTP 413 from `Content-Length` and for chunked streams, before the body is buffered or authenticated | Implemented |
+| No interactive docs or OpenAPI pages (`/docs`, `/redoc`, `/openapi.json`) | Implemented |
+| Response headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` (Agent Card stays cacheable) | Implemented |
+| Startup warnings when bound beyond loopback without an API key or without TLS | Implemented |
 | Graceful shutdown cancels in-flight inference | Implemented |
 | Streaming buffer bounds / slow-consumer backpressure | Not implemented (relies on the SDK queue and Lemonade's own generation rate) |
 | Per-client rate limiting, multiple keys/identities, OAuth/OIDC, mTLS | Not implemented |
@@ -93,6 +97,10 @@ These are deployment policies, not modifications to the A2A protocol.
 ## Logging
 
 Default logs should contain operational metadata, not prompts or generated content. Content logging must be explicit opt-in.
+
+## Automated security checks
+
+Every pull request runs CodeQL (Python, JavaScript, Actions), bandit, pip-audit, detect-secrets against `.secrets.baseline`, and GitHub dependency review; the same scans run weekly. Findings reviewed as false positives are recorded in the baseline. See [governance.md](governance.md) for how these gate merges.
 
 ## Reporting
 

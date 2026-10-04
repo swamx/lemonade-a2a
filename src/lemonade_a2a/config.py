@@ -24,6 +24,7 @@ class Settings:
     request_timeout_seconds: float = 120.0
     max_input_chars: int = 100_000
     max_input_parts: int = 32
+    max_request_bytes: int = 1_048_576
     max_task_seconds: float = 600.0
     max_concurrent_tasks: int = 8
     max_stored_tasks: int = 1000
@@ -43,6 +44,7 @@ class Settings:
             "LEMONADE_TIMEOUT_SECONDS": self.request_timeout_seconds,
             "LEMONADE_A2A_MAX_INPUT_CHARS": self.max_input_chars,
             "LEMONADE_A2A_MAX_INPUT_PARTS": self.max_input_parts,
+            "LEMONADE_A2A_MAX_REQUEST_BYTES": self.max_request_bytes,
             "LEMONADE_A2A_MAX_TASK_SECONDS": self.max_task_seconds,
             "LEMONADE_A2A_MAX_CONCURRENT_TASKS": self.max_concurrent_tasks,
             "LEMONADE_A2A_MAX_STORED_TASKS": self.max_stored_tasks,
@@ -74,6 +76,7 @@ class Settings:
             ),
             max_input_chars=number("LEMONADE_A2A_MAX_INPUT_CHARS", defaults.max_input_chars),
             max_input_parts=number("LEMONADE_A2A_MAX_INPUT_PARTS", defaults.max_input_parts),
+            max_request_bytes=number("LEMONADE_A2A_MAX_REQUEST_BYTES", defaults.max_request_bytes),
             max_task_seconds=number(
                 "LEMONADE_A2A_MAX_TASK_SECONDS", defaults.max_task_seconds, float
             ),

@@ -148,6 +148,7 @@ The adapter expects a running Lemonade server exposing an OpenAI-compatible endp
 | `LEMONADE_A2A_AGENT_NAME` / `LEMONADE_A2A_AGENT_DESCRIPTION` | see `config.py` | Agent Card text |
 | `LEMONADE_TIMEOUT_SECONDS` | `120` | Backend request timeout |
 | `LEMONADE_A2A_MAX_INPUT_CHARS` / `LEMONADE_A2A_MAX_INPUT_PARTS` | `100000` / `32` | Maximum input text / message parts |
+| `LEMONADE_A2A_MAX_REQUEST_BYTES` | `1048576` | Maximum HTTP request body (413 above it) |
 | `LEMONADE_A2A_MAX_TASK_SECONDS` | `600` | Per-task deadline (task fails when exceeded) |
 | `LEMONADE_A2A_MAX_CONCURRENT_TASKS` | `8` | Running-task cap; extra tasks are `REJECTED` |
 | `LEMONADE_A2A_MAX_STORED_TASKS` | `1000` | Task store size; oldest finished tasks are evicted |
