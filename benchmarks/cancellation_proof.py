@@ -88,7 +88,11 @@ async def main(args: argparse.Namespace) -> None:
 
         stream, task_id = await start_essay(client, args)
         await asyncio.sleep(0.5)
-        queued = await direct_small(client, args)  # waits for the essay to finish
+        try:  # normally waits for the essay to finish; a rambling model may not
+            queued = await asyncio.wait_for(direct_small(client, args), args.control_timeout)
+            queued_note = ""
+        except TimeoutError:
+            queued, queued_note = args.control_timeout * 1000, " (at least; gave up waiting)"
         await cancel(client, args, task_id)
         await stream.__aexit__(None, None, None)
         await asyncio.sleep(1)
@@ -100,7 +104,7 @@ async def main(args: argparse.Namespace) -> None:
         await stream.__aexit__(None, None, None)
 
     print(f"idle small request:                          {idle:8.0f} ms")
-    print(f"small request behind a running generation:   {queued:8.0f} ms")
+    print(f"small request behind a running generation:   {queued:8.0f} ms{queued_note}")
     print(f"CancelTask -> {state}; small request after:  {after:8.0f} ms")
     stopped = after < max(5 * idle, 1000) and after < queued / 2
     print("RESULT:", "PASS - backend generation stopped" if stopped else "FAIL/INCONCLUSIVE")
@@ -113,6 +117,9 @@ if __name__ == "__main__":
     parser.add_argument("--direct-url", default="http://127.0.0.1:13305/v1/chat/completions")
     parser.add_argument("--model", default=os.getenv("LEMONADE_MODEL", ""))
     parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument(
+        "--control-timeout", type=float, default=60.0, help="seconds to wait in the queued control"
+    )
     parsed = parser.parse_args()
     if not parsed.model:
         parser.error("--model is required unless LEMONADE_MODEL is set")

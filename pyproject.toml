@@ -36,6 +36,7 @@ packages = ["src/lemonade_a2a"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+markers = ["integration: needs a real Lemonade server (opt in with LEMONADE_INTEGRATION=1)"]
 
 [tool.ruff]
 line-length = 100

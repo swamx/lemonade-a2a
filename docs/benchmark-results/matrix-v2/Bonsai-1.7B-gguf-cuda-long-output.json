@@ -1,0 +1,59 @@
+{
+  "model": "Bonsai-1.7B-gguf",
+  "workload": "long-output",
+  "prompt_words": 15,
+  "prompt": "Write a detailed, well-structured explanation of about 400 words on how local AI inference works.",
+  "runs": 10,
+  "cancellation": {
+    "result": "pass",
+    "state": "TASK_STATE_CANCELED",
+    "cancel_latency_ms": 12.320299982093275,
+    "task": "afb8551d-b3e2-4708-81ac-9bce354c44ce"
+  },
+  "adapter_footprint": {
+    "rss_mb": 74.330112,
+    "cpu_percent_idle": 0.8
+  },
+  "ttft_ms": {
+    "direct": {
+      "median": 79.4406000059098,
+      "p95": 174.01030007749796,
+      "min": 40.175799978896976,
+      "max": 174.01030007749796
+    },
+    "a2a": {
+      "median": 82.7230999711901,
+      "p95": 115.82509998697788,
+      "min": 72.3846999462694,
+      "max": 115.82509998697788
+    }
+  },
+  "total_ms": {
+    "direct": {
+      "median": 1868.1047999998555,
+      "p95": 2817.1847000485286,
+      "min": 1621.9366000732407,
+      "max": 2817.1847000485286
+    },
+    "a2a": {
+      "median": 2160.2521499735303,
+      "p95": 2414.9891999550164,
+      "min": 1617.1940000494942,
+      "max": 2414.9891999550164
+    }
+  },
+  "chunks_per_s": {
+    "direct": {
+      "median": 268.42222225258536,
+      "p95": 286.2707789009125,
+      "min": 216.78478726423808,
+      "max": 286.2707789009125
+    },
+    "a2a": {
+      "median": 254.54433731683838,
+      "p95": 267.4859491727586,
+      "min": 213.25105814142623,
+      "max": 267.4859491727586
+    }
+  }
+}

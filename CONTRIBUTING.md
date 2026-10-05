@@ -44,6 +44,9 @@ CI runs exactly these (Python 3.11-3.13), plus a mock-Lemonade black-box job.
 | Smoke conformance | `python scripts/check_a2a_conformance.py` | adapter running |
 | Independent clients | `node interop/js_client.mjs`, `python interop/inspector_validate.py --inspector <clone>` | adapter running, see [docs/interoperability.md](docs/interoperability.md) |
 | Official A2A TCK | `python scripts/run_tck.py --tck-dir <a2a-tck>` | a2a-tck clone with its own venv, see [docs/conformance.md](docs/conformance.md) |
+| Real Lemonade, pytest | `LEMONADE_INTEGRATION=1 pytest tests/integration -m integration` (skipped otherwise; failures write logs and environment to `integration-diagnostics/`) | real Lemonade + model |
+| Real Lemonade, one command | `python scripts/validate_real_lemonade.py` (starts the adapter, runs validator, pytest suite and a benchmark) | real Lemonade + model |
+| Client libraries | `interop/go`, `interop/dotnet`, `interop/java` (commands in [docs/interoperability.md](docs/interoperability.md)) | adapter running, Go / .NET 8 / JDK 21 + Maven |
 | Real Lemonade | `python scripts/real_lemonade_e2e.py` | real Lemonade + model, see [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) |
 | Benchmarks | `python benchmarks/benchmark_evidence.py` | real Lemonade + adapter, see [docs/benchmarks.md](docs/benchmarks.md) |
 

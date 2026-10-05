@@ -42,25 +42,25 @@ _Last reviewed: 2026-10-04._ A checked box means the item is implemented **and**
 - [x] Fix TCK failures found: route shadowing, Agent Card cache headers, non-JSON content-type handling, Message-vs-Task replies in the test SUT.
 - [x] Root-cause the two SHOULD-level deviations `CORE-HIST-005/006`: the TCK reuses one messageId for several messages and the SDK deduplicates it (test artifact, not an adapter defect).
 - [x] Independent-client interoperability: A2A CLI v0.3.0 (Go SDK), `@a2a-js/sdk` 1.3.0 and the Inspector validators over JSON-RPC and HTTP+JSON, mock and real Lemonade.
-- [ ] ITK: not applicable to a standalone adapter (it tests SDKs against each other through its own agents); revisit only if an adapter-facing mode appears.
-- [ ] Client libraries not yet exercised: .NET (preview only), Java, Go library (needs toolchains).
-- [ ] Re-test the Go CLI against an auth-declaring card once a2a-go fixes ProtoJSON `securityRequirements` parsing (upstream #430).
-- [ ] Report the messageId-reuse issue in the TCK upstream.
-- [ ] Add an opt-in CI job that runs the pinned TCK.
-- [ ] Decide whether to declare optional capabilities that are currently skipped (extended Agent Card, push notifications, gRPC).
+- [x] ITK: **decided not applicable** to a standalone adapter (it tests SDKs against each other through its own agents); revisit only if an adapter-facing mode appears.
+- [x] Client libraries exercised: Go library (a2a-go v2.6.0), .NET (`A2A` 1.0.0-preview2) and Java (1.4.0.Final), each 10/10 over both bindings with API-key auth (`interop/`).
+- [x] Re-test the Go CLI against an auth-declaring card: fixed in a2a-go v2.6.0; a CLI rebuilt on it parses the card and sends on both bindings (upstream #430).
+- [ ] Report the messageId-reuse issue in the TCK upstream: **drafted** in [upstream-issues/tck-message-id-reuse.md](upstream-issues/tck-message-id-reuse.md), not yet filed (awaiting owner approval).
+- [x] Add an opt-in CI job that runs the pinned TCK (`.github/workflows/tck.yml`; first GitHub run is on the PR that adds it).
+- [x] Decide whether to declare optional capabilities that are currently skipped: **no**, with reasons and revisit triggers in [conformance.md](conformance.md).
 
-**Exit criterion (met):** TCK clean at MUST level plus independent SDK clients exercising the live adapter.
+**Exit criterion (met):** TCK clean at MUST level plus independent SDK clients exercising the live adapter. Open: filing the upstream issue (needs owner approval) and the first GitHub run of the TCK job.
 
-## P0 — Real Lemonade validation — mostly done
+## P0 — Real Lemonade validation — done
 
 - [x] Validator (`scripts/real_lemonade_e2e.py`): model discovery, Agent Card → `SendMessage` → artifact.
 - [x] Real SSE streaming and final artifact assembly.
 - [x] Backend-error and timeout mapping (unit-tested; unreachable backend also checked by hand).
 - [x] Cancellation stops the real backend request (`benchmarks/cancellation_proof.py`: 30.9 s queued behind a running generation vs 177 ms right after `CancelTask`).
-- [ ] Convert the validator into an opt-in `pytest` integration test.
-- [ ] Capture service logs and environment metadata automatically on failure.
-- [ ] One-command local workflow (start adapter, run validator, run benchmark).
-- [ ] Validate with an independent A2A client library, not only the in-repo scripts.
+- [x] Opt-in `pytest` integration tests (`tests/integration/`, marker `integration`, skipped unless a real Lemonade is configured): 6/6 pass locally.
+- [x] Service logs and environment metadata captured automatically on failure (`src/lemonade_a2a/diagnostics.py`, written to `integration-diagnostics/`); verified with a deliberately failing test.
+- [x] One-command local workflow: `python scripts/validate_real_lemonade.py` starts the adapter, runs the validator, pytest suite and a benchmark; all four steps pass.
+- [x] Validated with independent client libraries (JS, Go, .NET, Java, A2A CLI) against real Lemonade; see [interoperability.md](interoperability.md).
 
 ## P0 — Performance evidence
 
@@ -68,9 +68,9 @@ _Last reviewed: 2026-10-04._ A checked box means the item is implemented **and**
 - [x] Protocol overhead measured independently of generation time (mock backend: ~+10 ms TTFT).
 - [x] Real results on llama.cpp CUDA, Vulkan and CPU with 1.7B and 4B models; 30-run repeats showed single 10-run samples can swing by tens of ms.
 - [x] Concurrent load up to N = 8: Lemonade serializes (flat throughput, linear latency growth), the adapter adds no measurable cost, no failures.
-- [ ] Longer prompts/outputs and models larger than 4B.
-- [ ] More than one machine; more runs per cell (current cells are 10 runs).
-- [ ] Define an acceptable overhead budget before native implementation (observed: ~5-15 ms median TTFT).
+- [~] Longer prompts/outputs and models larger than 4B: done for 1.7B and 4B on three backends; Gemma-4-12B only partly measured (CUDA short only; long workloads failed in the direct path, CPU cell hung). See [benchmarks.md](benchmarks.md).
+- [~] More runs per cell: done (30 for short cells). More than one machine: only through the `bench.yml` GitHub-runner job, which has not run yet.
+- [~] Overhead budget defined and enforced by `benchmarks/check_budget.py` (see [benchmarks.md](benchmarks.md)). Every 30-run cell on the 1.7B/4B models is within it; Gemma-4-12B on CUDA is **over** (+1.6 s, likely noise on a memory-bound GPU, unconfirmed).
 
 The objective is not to optimize the Python adapter indefinitely; it is to establish a baseline that tells us whether native Lemonade integration is justified and what it must improve.
 

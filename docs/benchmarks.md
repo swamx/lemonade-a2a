@@ -125,6 +125,52 @@ What this shows:
 
 `benchmarks/cancellation_proof.py` times a tiny direct request (Gemma-3-4B, llama.cpp CUDA): 167 ms on an idle server, **30.9 s** while an A2A-started essay is still generating (it queues behind it), and **177 ms** immediately after `CancelTask` on such an essay (`TASK_STATE_CANCELED`). The backend stops generating when the A2A task is cancelled; it is not just task metadata changing.
 
+### Matrix v2: larger model, long prompts, long outputs, more runs - 2026-10-04
+
+Raw reports: [benchmark-results/matrix-v2/](benchmark-results/matrix-v2/). Medians, direct / A2A, with the A2A delta in parentheses (ms). Workloads: `short` (6-word prompt), `long-prompt` (~1,500-word prompt), `long-output` (asks for ~400 words). 30 runs for short cells on the 1.7B and 4B models, 15 / 8-10 for the longer workloads, 20 for the 12B model.
+
+| Model | Backend | Workload | Runs | TTFT ms | Total ms | Chunks/s | Budget |
+|---|---|---|---|---|---|---|---|
+| Bonsai-1.7B-gguf | cpu | long-output | 10 | 70 / 84 (+14) | 11909 / 11633 (-276) | 42.2 / 43.4 | within |
+| Bonsai-1.7B-gguf | cpu | long-prompt | 15 | 60 / 76 (+15) | 1292 / 1272 (-20) | 36.5 / 35.6 | within |
+| Bonsai-1.7B-gguf | cpu | short | 30 | 53 / 64 (+10) | 1178 / 1126 (-53) | 45.3 / 47.3 | within |
+| Bonsai-1.7B-gguf | cuda | long-output | 10 | 79 / 83 (+3) | 1868 / 2160 (+292) | 268.4 / 254.5 | OVER |
+| Bonsai-1.7B-gguf | cuda | long-prompt | 15 | 62 / 79 (+16) | 249 / 297 (+49) | 219.9 / 194.4 | OVER |
+| Bonsai-1.7B-gguf | cuda | short | 30 | 46 / 51 (+5) | 229 / 253 (+24) | 288.2 / 263.2 | within |
+| Bonsai-1.7B-gguf | vulkan | long-output | 10 | 115 / 126 (+11) | 3844 / 3644 (-201) | 128.0 / 136.5 | within |
+| Bonsai-1.7B-gguf | vulkan | long-prompt | 15 | 68 / 79 (+11) | 415 / 481 (+66) | 118.4 / 115.1 | OVER |
+| Bonsai-1.7B-gguf | vulkan | short | 30 | 74 / 90 (+16) | 458 / 467 (+10) | 134.8 / 135.2 | within |
+| Gemma-3-4b-it-GGUF | cpu | long-output | 8 | 163 / 181 (+18) | 36991 / 36432 (-559) | 17.2 / 17.3 | within |
+| Gemma-3-4b-it-GGUF | cpu | long-prompt | 15 | 159 / 173 (+13) | 3120 / 3128 (+8) | 15.2 / 15.3 | within |
+| Gemma-3-4b-it-GGUF | cpu | short | 30 | 136 / 142 (+6) | 3525 / 3615 (+90) | 17.8 / 17.8 | within |
+| Gemma-3-4b-it-GGUF | cuda | long-output | 8 | 137 / 163 (+26) | 10330 / 9868 (-462) | 64.4 / 65.4 | within |
+| Gemma-3-4b-it-GGUF | cuda | long-prompt | 15 | 178 / 203 (+25) | 943 / 991 (+48) | 59.0 / 57.4 | within |
+| Gemma-3-4b-it-GGUF | cuda | short | 30 | 111 / 122 (+11) | 1013 / 1039 (+26) | 62.6 / 61.9 | within |
+| Gemma-3-4b-it-GGUF | vulkan | long-output | 8 | 239 / 253 (+14) | 11831 / 11730 (-102) | 56.9 / 56.3 | within |
+| Gemma-3-4b-it-GGUF | vulkan | long-prompt | 15 | 284 / 260 (-24) | 1123 / 1102 (-21) | 53.5 / 53.1 | within |
+| Gemma-3-4b-it-GGUF | vulkan | short | 30 | 142 / 168 (+26) | 1172 / 1204 (+32) | 56.8 / 55.2 | within |
+| Gemma-4-12B-it-GGUF | cuda | short | 20 | 20399 / 21932 (+1533) | 23233 / 24873 (+1640) | 17.1 / 16.9 | OVER |
+
+**Overhead budget** (enforced by `benchmarks/check_budget.py`, which `bench.yml` runs). Each limit is the larger of an absolute floor and a share of the direct figure, so a slow model is not held to a sub-millisecond limit:
+
+| Metric | Limit |
+|---|---|
+| TTFT overhead | max(25 ms, 25% of direct TTFT) |
+| Total-latency overhead | max(50 ms, 5% of direct total) |
+| Streaming throughput | at least 90% of direct chunks/s |
+| Adapter resident memory | at most 100 MB |
+| Adapter idle CPU | at most 2% |
+
+Reports with fewer than 20 runs are scored but only *indicative*: laptop run-to-run noise is tens of milliseconds, larger than the budget floors.
+
+**Reading the matrix honestly**
+
+- **Every 30-run cell on the 1.7B and 4B models is within budget.** That covers CUDA, Vulkan and CPU, so the adapter's cost on short requests is small and does not depend on the backend.
+- **Three short-sample cells (10-15 runs) are over budget and are indicative only**: Bonsai CUDA long-output (+292 ms total), Bonsai CUDA long-prompt (88% throughput), Bonsai Vulkan long-prompt (+66 ms total). The same cells in the 30-run short workload are within budget; a 10-run median on a 1.7B model whose total time is a few hundred ms is within the noise. They should be re-run with 20+ runs (the Linux `bench.yml` job does) before reading anything into them.
+- **Gemma-4-12B on CUDA breaks the budget (+1,640 ms total, +1,533 ms TTFT over 20 runs) and this is recorded as a failure, not smoothed over.** The direct runs themselves varied from 14.5 s to 27.0 s to the first token on this machine (the model does not fit comfortably on the laptop GPU, and the 13.5 GB server process competes for memory), so the 1.5 s delta is smaller than the spread of the thing being measured, and throughput was identical (16.9 vs 17.1 chunks/s). The result is more likely noise than adapter cost, but it was not shown to be, so it stays marked as over budget until a quieter machine confirms it.
+- **Gemma-4-12B is only partially measured.** The long-prompt and long-output cells failed in the *direct* path (`stream produced no text chunks`, before any A2A request was made), and the 12B CPU cell did not finish (it hung for over two hours and was stopped). Neither is an adapter result and neither is counted. The no-text-chunks failure has not been diagnosed; one possibility is that the model returns its output in a field other than `content`.
+- **The numbers are from one machine.** A second, independent machine is provided by the `bench.yml` GitHub-runner job (CPU only), whose results will be added after it first runs on `main`.
+
 ### What this machine cannot cover
 
 This laptop has an Intel CPU and an NVIDIA GPU. **NPU, ROCm and non-llama.cpp engines (ONNX Runtime/Ryzen AI, FastFlowLM) were not measured** because the hardware is absent; ONNX Runtime is installable in Lemonade but the catalog models for it here are not chat models. Those rows remain open in the roadmap.
