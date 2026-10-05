@@ -86,9 +86,9 @@ Validated so far (details: [roadmap](docs/roadmap.md), [benchmarks](docs/benchma
 - automatic Agent Card, SSE streaming into A2A artifacts, cancellation that stops the real backend generation, backend failures mapped to `FAILED` tasks;
 - resource bounds (input size/parts, per-task deadline, concurrency cap with `REJECTED`, bounded task store), optional API-key auth, TLS, graceful shutdown;
 - the **official A2A TCK** against the protocol surface: 157 passed, 0 failed, 4 expected-fail (SHOULD), the rest skipped for capabilities not declared (see [conformance](docs/conformance.md) for scope);
-- **independent clients** (A2A CLI on the Go SDK, the JavaScript SDK, the Inspector's validators) pass over JSON-RPC and HTTP+JSON, on the mock and on real Lemonade ([interoperability](docs/interoperability.md));
+- **independent clients** (A2A CLI, and the JavaScript, Go, .NET and Java SDKs, plus the Inspector's validators) pass over JSON-RPC and HTTP+JSON, on the mock and on real Lemonade ([interoperability](docs/interoperability.md));
 - CI on Python 3.11-3.13 (ruff, ruff format, pytest) plus a deterministic mock-Lemonade end-to-end job;
-- a **real Lemonade 2026.40.0** setup on llama.cpp CUDA, Vulkan and CPU with a 1.7B and a 4B model: the validator passes, A2A adds roughly 5-15 ms TTFT, and concurrent load (up to 8) shows no adapter-added cost (throughput is bounded by the backend).
+- a **real Lemonade 2026.40.0** setup on llama.cpp CUDA, Vulkan and CPU with a 1.7B and a 4B model: the validator and an opt-in pytest suite pass, A2A adds roughly 5-15 ms TTFT within a defined overhead budget on those models (a 12B model on CUDA was over budget, likely noise, and is only partly measured), and concurrent load (up to 8) shows no adapter-added cost (throughput is bounded by the backend).
 
 Not yet done: ITK (it tests SDKs against each other, so it does not apply to a standalone adapter), NPU/ROCm and non-llama.cpp backends (no hardware available so far), stream-level backpressure, per-user authorization. The next milestone is cross-backend evidence on AMD hardware and the upstream-native design.
 
@@ -220,10 +220,10 @@ Before implementing the native C++ surface, the reference adapter should pass re
 
 ## Recommended next steps
 
-1. Re-test the CLI against a card that declares auth once an a2a-go release with the ProtoJSON fix ships (see [interoperability](docs/interoperability.md)).
+1. Re-run the 12B benchmark cells on a quieter machine and diagnose the direct-path "no text chunks" failure; review the first GitHub runs of the TCK and benchmark jobs.
 2. Validate on AMD hardware: NPU and ROCm paths and a non-llama.cpp engine (not possible on the NVIDIA/Intel machine used so far).
 3. Add stream-level backpressure, per-user task isolation and rate limiting.
-4. Add an opt-in CI job that runs the pinned TCK.
+4. File the drafted upstream TCK issue (needs owner approval).
 5. Draft the native Lemonade A2A API boundary and map it onto Lemonade's HTTP/router architecture.
 6. Only then prototype the native C++ A2A endpoint and propose it upstream.
 

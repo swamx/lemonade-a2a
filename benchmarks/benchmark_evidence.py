@@ -21,6 +21,19 @@ import httpx
 
 A2A_HEADERS = {"A2A-Version": "1.0"}
 
+# Reproducible workloads. "short" is the default; the others stress prompt
+# processing (long input) and sustained generation (long output).
+_PARAGRAPH = (
+    "Local inference keeps data on the device, removes network round trips and lets "
+    "applications work offline, but it shares limited memory and compute between the "
+    "model and everything else running on the machine. "
+)
+WORKLOADS = {
+    "short": "Explain local AI in two sentences.",
+    "long-prompt": _PARAGRAPH * 45 + "\n\nSummarize the text above in two sentences.",
+    "long-output": "Write a detailed, well-structured explanation of about 400 words on how local AI inference works.",
+}
+
 
 def rpc(method: str, params: dict) -> dict:
     return {"jsonrpc": "2.0", "id": str(uuid.uuid4()), "method": method, "params": params}
@@ -216,7 +229,9 @@ async def run(args: argparse.Namespace) -> dict:
 
     report: dict = {
         "model": args.model,
-        "prompt": args.prompt,
+        "workload": args.workload if args.prompt == WORKLOADS[args.workload] else "custom",
+        "prompt_words": len(args.prompt.split()),
+        "prompt": args.prompt[:200],
         "runs": args.runs,
         "cancellation": cancel,
         "adapter_footprint": adapter_footprint(args.a2a_pid, args.idle_seconds),
@@ -278,7 +293,13 @@ def main() -> None:
     parser.add_argument("--direct-url", default="http://127.0.0.1:13305/v1/chat/completions")
     parser.add_argument("--a2a-url", default="http://127.0.0.1:9100")
     parser.add_argument("--model", default=os.getenv("LEMONADE_MODEL", ""))
-    parser.add_argument("--prompt", default="Explain local AI in two sentences.")
+    parser.add_argument(
+        "--workload",
+        choices=sorted(WORKLOADS),
+        default="short",
+        help="preset prompt (ignored if --prompt is set)",
+    )
+    parser.add_argument("--prompt", default="")
     parser.add_argument("--cancel-prompt", default="Write a long essay about local AI.")
     parser.add_argument("--warmup", type=int, default=2)
     parser.add_argument("--runs", type=int, default=10)
@@ -294,6 +315,7 @@ def main() -> None:
     parser.add_argument("--load-rounds", type=int, default=3)
     parser.add_argument("--output", type=Path, default=Path("benchmark-report.json"))
     args = parser.parse_args()
+    args.prompt = args.prompt or WORKLOADS[args.workload]
     if not args.model:
         parser.error("--model is required unless LEMONADE_MODEL is set")
     if args.runs < 1 or args.warmup < 0:

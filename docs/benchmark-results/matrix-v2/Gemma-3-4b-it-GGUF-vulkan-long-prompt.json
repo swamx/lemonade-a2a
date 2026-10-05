@@ -1,0 +1,59 @@
+{
+  "model": "Gemma-3-4b-it-GGUF",
+  "workload": "long-prompt",
+  "prompt_words": 1492,
+  "prompt": "Local inference keeps data on the device, removes network round trips and lets applications work offline, but it shares limited memory and compute between the model and everything else running on the ",
+  "runs": 15,
+  "cancellation": {
+    "result": "pass",
+    "state": "TASK_STATE_CANCELED",
+    "cancel_latency_ms": 35.22379999049008,
+    "task": "8a8247b5-30cb-4b32-9475-2bd56fe285dc"
+  },
+  "adapter_footprint": {
+    "rss_mb": 76.6976,
+    "cpu_percent_idle": 0.0
+  },
+  "ttft_ms": {
+    "direct": {
+      "median": 284.3364999862388,
+      "p95": 329.04249988496304,
+      "min": 208.4709000773728,
+      "max": 329.04249988496304
+    },
+    "a2a": {
+      "median": 259.84369998332113,
+      "p95": 340.60340002179146,
+      "min": 241.96739995386451,
+      "max": 340.60340002179146
+    }
+  },
+  "total_ms": {
+    "direct": {
+      "median": 1122.8941000299528,
+      "p95": 1330.2025999873877,
+      "min": 1035.2910000365227,
+      "max": 1330.2025999873877
+    },
+    "a2a": {
+      "median": 1101.67859995272,
+      "p95": 1337.0563000207767,
+      "min": 1013.2276000222191,
+      "max": 1337.0563000207767
+    }
+  },
+  "chunks_per_s": {
+    "direct": {
+      "median": 53.52811258890721,
+      "p95": 56.37562876799176,
+      "min": 47.94437972017594,
+      "max": 56.37562876799176
+    },
+    "a2a": {
+      "median": 53.11410192563142,
+      "p95": 56.525946181604155,
+      "min": 51.563266332686304,
+      "max": 56.525946181604155
+    }
+  }
+}

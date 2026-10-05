@@ -13,8 +13,10 @@ First release of the Python reference adapter: an A2A 1.0 protocol surface in fr
 - **Automated gates**: CodeQL, bandit, pip-audit, secret scanning, dependency review and a 95% coverage threshold (99% measured) on every pull request.
 - **Evidence** (see `docs/`):
   - official A2A TCK against the protocol surface: 157 passed, 0 failed, 4 expected-fail (SHOULD, a TCK test artifact), the rest skipped for undeclared capabilities; `docs/conformance-results.json`;
-  - independent clients (A2A CLI, JS SDK, Inspector validators) over both bindings, mock and real Lemonade; `docs/interoperability.md`;
-  - real Lemonade 2026.40.0 on llama.cpp CUDA, Vulkan and CPU with a 1.7B and a 4B model; `docs/benchmarks.md`;
+  - independent clients (A2A CLI, JS SDK, Go library, .NET, Java, Inspector validators) over both bindings, mock and real Lemonade, each 10/10; `docs/interoperability.md`;
+  - opt-in real-Lemonade `pytest` suite with automatic failure diagnostics and a one-command validation script;
+  - pinned-TCK and benchmark-budget CI workflows;
+  - real Lemonade 2026.40.0 on llama.cpp CUDA, Vulkan and CPU with a 1.7B and a 4B model, plus long-prompt and long-output workloads and a defined overhead budget; Gemma-4-12B only partly measured and over budget on CUDA (+1.6 s, likely noise, unconfirmed); `docs/benchmarks.md`;
   - deterministic mock-Lemonade black-box E2E in CI (Python 3.11-3.13).
 
 ### Measured
@@ -26,7 +28,8 @@ First release of the Python reference adapter: an A2A 1.0 protocol surface in fr
 
 - The TCK run uses a scenario executor behind the real server layer; it certifies the protocol surface, not Lemonade inference.
 - Not covered: ITK (not applicable to a standalone adapter), NPU/ROCm/non-llama.cpp backends, gRPC, push notifications, extended Agent Card, stream-level backpressure, per-user authorization and rate limiting.
-- The A2A CLI v0.3.0 cannot discover an agent whose card declares auth (upstream a2a-go #430); connect with `--endpoint`.
+- The A2A CLI v0.3.0 cannot discover an agent whose card declares auth (a2a-go #430, fixed in a2a-go v2.6.0; a CLI release bundling it is needed); connect with `--endpoint`.
+- Java SDK 1.4.0 rejects `ListTasks` responses whose `pageSize` differs from the task count (stricter than the A2A spec example).
 - Pre-alpha: pinning and API details may change.
 
 ### Upgrade notes

@@ -1,0 +1,59 @@
+{
+  "model": "Bonsai-1.7B-gguf",
+  "workload": "long-prompt",
+  "prompt_words": 1492,
+  "prompt": "Local inference keeps data on the device, removes network round trips and lets applications work offline, but it shares limited memory and compute between the model and everything else running on the ",
+  "runs": 15,
+  "cancellation": {
+    "result": "pass",
+    "state": "TASK_STATE_CANCELED",
+    "cancel_latency_ms": 14.818100025877357,
+    "task": "22e11536-e04a-455f-bdf7-df55f1071c68"
+  },
+  "adapter_footprint": {
+    "rss_mb": 75.91936,
+    "cpu_percent_idle": 0.0
+  },
+  "ttft_ms": {
+    "direct": {
+      "median": 68.13979998696595,
+      "p95": 90.56309994775802,
+      "min": 50.69099995307624,
+      "max": 90.56309994775802
+    },
+    "a2a": {
+      "median": 78.91529996413738,
+      "p95": 100.12990003451705,
+      "min": 68.35790001787245,
+      "max": 100.12990003451705
+    }
+  },
+  "total_ms": {
+    "direct": {
+      "median": 414.5917999558151,
+      "p95": 574.990599998273,
+      "min": 320.2474999707192,
+      "max": 574.990599998273
+    },
+    "a2a": {
+      "median": 480.54989997763187,
+      "p95": 712.1806999202818,
+      "min": 303.638800047338,
+      "max": 712.1806999202818
+    }
+  },
+  "chunks_per_s": {
+    "direct": {
+      "median": 118.35851713796785,
+      "p95": 140.2876436444106,
+      "min": 106.08626870072585,
+      "max": 140.2876436444106
+    },
+    "a2a": {
+      "median": 115.12782065778201,
+      "p95": 132.83000858720817,
+      "min": 83.2454805650279,
+      "max": 132.83000858720817
+    }
+  }
+}

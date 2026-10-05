@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Preview: the only A2A 1.0 build of the .NET SDK published so far. -->
+    <PackageReference Include="A2A" Version="1.0.0-preview2" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,76 @@
+name: Benchmark
+
+# Protocol-overhead benchmark against the deterministic mock backend on a hosted
+# Linux runner: a second, independent machine for the adapter's own overhead.
+# (It says nothing about model speed; see docs/benchmarks.md for real Lemonade runs.)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 3 1 * *"
+  pull_request:
+    paths:
+      - "benchmarks/**"
+      - ".github/workflows/bench.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protocol-overhead:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]' psutil
+      - name: Start mock Lemonade and the adapter
+        env:
+          MOCK_LEMONADE_TOKEN_DELAY: "0.05"
+          MOCK_LEMONADE_TOKEN_COUNT: "5"
+          LEMONADE_BASE_URL: http://127.0.0.1:13305/v1
+          LEMONADE_A2A_PUBLIC_URL: http://127.0.0.1:9100
+          LEMONADE_MODEL: mock
+          LEMONADE_A2A_MAX_CONCURRENT_TASKS: "32"
+        run: |
+          python -m uvicorn tests.mock_lemonade:app --host 127.0.0.1 --port 13305 > mock.log 2>&1 &
+          lemonade-a2a > adapter.log 2>&1 &
+          echo $! > adapter.pid
+          for _ in $(seq 40); do curl -sf http://127.0.0.1:9100/healthz && break; sleep 0.5; done
+      - name: Benchmark (30 runs, load N = 1, 4, 8)
+        run: |
+          python benchmarks/benchmark_evidence.py --model mock \
+            --direct-url http://127.0.0.1:13305/v1/chat/completions \
+            --warmup 3 --runs 30 --concurrency 1,4,8 --load-rounds 3 \
+            --a2a-pid "$(cat adapter.pid)" --output bench.json | tee bench.md
+      - name: Budget check
+        run: python benchmarks/check_budget.py bench.json --min-runs 20
+      - name: Summary with runner provenance
+        if: always()
+        run: |
+          {
+            echo "### Protocol overhead on a hosted Linux runner"
+            echo "\`$(lscpu | grep 'Model name' | sed 's/.*: *//')\`, $(nproc) vCPU, ${ImageOS:-}${ImageVersion:+ $ImageVersion}"
+            echo
+            cat bench.md 2>/dev/null
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: benchmark-protocol-overhead
+          path: |
+            bench.json
+            bench.md
+            adapter.log
+            mock.log
+          if-no-files-found: ignore

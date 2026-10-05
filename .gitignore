@@ -6,3 +6,9 @@ __pycache__/
 coverage.xml
 htmlcov/
 node_modules/
+integration-diagnostics/
+benchmark-report.json
+interop/java/target/
+interop/dotnet/bin/
+interop/dotnet/obj/
+reports/
