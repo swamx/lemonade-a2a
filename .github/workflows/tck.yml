@@ -23,7 +23,7 @@ concurrency:
 
 env:
   # To move to a newer TCK: change this SHA, run the job, review the diff in results.
-  TCK_REF: 263b9cfaf16a554bdfb166a7ba5b67716e946349
+  TCK_REF: 263b9cfaf16a554bdfb166a7ba5b67716e946349  # pragma: allowlist secret
 
 jobs:
   tck:
