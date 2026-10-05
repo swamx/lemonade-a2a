@@ -4,21 +4,21 @@ This roadmap tracks the path from the Python reference adapter to a potential na
 
 The architectural rule is simple: **A2A owns agent interoperability; Lemonade owns inference, model management, backend routing and hardware optimization.** The A2A layer must remain usable across local AI systems and must not depend on AMD-specific hardware or a separate reasoning-model stack.
 
-_Last reviewed: 2026-10-04._ A checked box means the item is implemented **and** verified (test, CI, official suite or recorded measurement); caveats are written next to the item.
+_Last reviewed: 2026-10-05._ A checked box means the item is implemented **and** verified (test, CI, official suite or recorded measurement); caveats are written next to the item.
 
 ## Where we are
 
 | Area | Status |
 |---|---|
 | Protocol surface (Agent Card, JSON-RPC, HTTP+JSON, streaming, task lifecycle, cancellation) | Implemented, unit/E2E tested |
-| Official A2A TCK (protocol surface, pinned commit `263b9cf`) | **157 passed, 0 failed**, 4 expected-fail (SHOULD), 104 skipped for undeclared capabilities; scope caveat in [conformance.md](conformance.md) |
+| Official A2A TCK (protocol surface, pinned commit `263b9cf`) | **157 passed, 0 failed**, 4 expected-fail (SHOULD); with the messageId workaround for [a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248) **161 passed, 0 deviations**; both enforced in CI; scope caveat in [conformance.md](conformance.md) |
 | Real Lemonade 2026.40.0 validation | Done: llama.cpp CUDA, Vulkan, CPU; Bonsai-1.7B and Gemma-3-4B; one machine |
 | Performance evidence | TTFT overhead roughly 5-15 ms; flat throughput under load (backend-bound); ~70 MB RSS, ~0% idle CPU |
 | Cancellation | Verified to stop real backend generation |
-| Resource bounds, auth, TLS, shutdown | Implemented (input, deadline, concurrency cap, bounded store, API key, TLS) |
-| Independent clients (Go-based A2A CLI, JS SDK, Inspector validators) | Pass on both bindings, mock and real Lemonade; ITK not applicable, .NET/Java/Go libraries not run; see [interoperability.md](interoperability.md) |
-| NPU / ROCm / non-llama.cpp engines | **Not measured** (no such hardware on the test machine) |
-| Stream backpressure, per-user isolation, rate limiting | **Not implemented** |
+| Resource bounds, auth, TLS, shutdown | Implemented (input, deadline, concurrency cap, bounded store, backpressure, named API keys with per-user isolation, rate limiting, TLS and mutual TLS, exposure profiles, opt-in cancel on disconnect) |
+| Fuzzing | Property-based; found and fixed two defects (non-UTF-8 bodies, wrongly shaped backend stream events) |
+| Independent clients (A2A CLI, JS, Go, .NET and Java SDKs, Inspector validators) | Pass on both bindings, mock and real Lemonade; ITK not applicable; see [interoperability.md](interoperability.md) |
+| NPU / ROCm / Metal / non-llama.cpp engines | **Not measured** (no such hardware on the test machine); the only open P1 items |
 | Native Lemonade integration | Not started (by design, see gates below) |
 
 ## Done
@@ -45,11 +45,11 @@ _Last reviewed: 2026-10-04._ A checked box means the item is implemented **and**
 - [x] ITK: **decided not applicable** to a standalone adapter (it tests SDKs against each other through its own agents); revisit only if an adapter-facing mode appears.
 - [x] Client libraries exercised: Go library (a2a-go v2.6.0), .NET (`A2A` 1.0.0-preview2) and Java (1.4.0.Final), each 10/10 over both bindings with API-key auth (`interop/`).
 - [x] Re-test the Go CLI against an auth-declaring card: fixed in a2a-go v2.6.0; a CLI rebuilt on it parses the card and sends on both bindings (upstream #430).
-- [ ] Report the messageId-reuse issue in the TCK upstream: **drafted** in [upstream-issues/tck-message-id-reuse.md](upstream-issues/tck-message-id-reuse.md), not yet filed (awaiting owner approval).
+- [x] Report the messageId-reuse issue in the TCK upstream: filed as [a2aproject/a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248) (text kept in [upstream-issues/tck-message-id-reuse.md](upstream-issues/tck-message-id-reuse.md)); a workaround run is enforced in CI until it is fixed.
 - [x] Add an opt-in CI job that runs the pinned TCK (`.github/workflows/tck.yml`; first GitHub run is on the PR that adds it).
 - [x] Decide whether to declare optional capabilities that are currently skipped: **no**, with reasons and revisit triggers in [conformance.md](conformance.md).
 
-**Exit criterion (met):** TCK clean at MUST level plus independent SDK clients exercising the live adapter. Open: filing the upstream issue (needs owner approval) and the first GitHub run of the TCK job.
+**Exit criterion (met):** TCK clean at MUST level plus independent SDK clients exercising the live adapter. The upstream issue is filed and the TCK job runs in CI (official and workaround runs).
 
 ## P0 — Real Lemonade validation — done
 
@@ -81,25 +81,25 @@ The objective is not to optimize the Python adapter indefinitely; it is to estab
 - [x] Lemonade unavailable / non-2xx mapped to `FAILED` (model-not-found uses the generic non-2xx message).
 - [x] Graceful shutdown cancels in-flight tasks.
 - [x] Client disconnect: **decided by design not to cancel** (A2A tasks outlive connections and can be resubscribed); abandoned work is bounded by the deadline and `CancelTask`. Documented in [protocol-mapping.md](protocol-mapping.md).
-- [ ] Bounded streaming queues / slow-consumer backpressure.
-- [ ] Concurrent task isolation tests (outputs of simultaneous tasks never mix); load tests only show throughput.
-- [ ] Repeated cancellation / race-condition tests.
-- [ ] Close partial artifacts cleanly when a stream fails mid-way.
-- [ ] Opt-in "cancel on disconnect" mode for deployments that prefer it.
+- [x] Bounded streaming queues / slow-consumer backpressure: provided by the A2A SDK's bounded event queue and **verified end to end** against a stalled client (the adapter keeps serving, memory stays flat, the task ends `FAILED` at its deadline). The bound (1,024 events) is the SDK's and not configurable here; a configurable bound would need an SDK change.
+- [x] Concurrent task isolation tests: 40 simultaneous jittery streams each return exactly their own prompt, and the executor's bookkeeping is empty afterwards (`tests/test_stream_failures_and_isolation.py`).
+- [x] Repeated cancellation / race-condition tests: 24 start-then-cancel races at staggered delays, each cancelled twice, over real sockets; every task ends terminal, none stays running, no 5xx (`tests/test_live_lifecycle.py`).
+- [x] Close partial artifacts cleanly when a stream fails mid-way: the artifact is closed with `last_chunk=true` before `FAILED` (backend error, timeout, unreadable stream, deadline). A *cancelled* stream is left as streamed; the cancel path publishes the terminal status itself.
+- [x] Opt-in "cancel on disconnect" mode (`LEMONADE_A2A_CANCEL_ON_DISCONNECT=1`): cancels the task started by a streaming request when its client goes away; a resubscriber leaving does not (tested over real sockets).
 
 ## P1 — Security and compatibility hardening
 
 - [x] Smoke conformance in CI and official TCK run.
 - [x] Size limits: input characters and parts; task store and concurrency bounds.
 - [x] Authentication (shared API key) and TLS options; secrets kept out of `repr`/logs.
-- [ ] Per-user identity and task isolation (the store owner is not derived from the key); multiple keys; rate limiting.
-- [ ] OAuth/OIDC or mTLS options.
+- [x] Per-user identity and task isolation (the key's name is the task owner), multiple named keys, per-identity rate limiting (429 + `Retry-After`); tested on both bindings, including cross-user get, list, cancel and continue.
+- [x] mTLS option (verified with generated certificates: valid, missing and foreign-CA clients). OAuth/OIDC is **decided out of the adapter** and documented as a gateway pattern in [security.md](security.md); revisit only if the adapter must read the token subject itself.
 - [x] Request body size limit (413), no public docs/OpenAPI pages, security response headers, startup warnings for exposed deployments.
 - [x] Automated security gates in CI: CodeQL, bandit, pip-audit, secret scan, dependency review, weekly schedule, Dependabot; coverage gate at 95% (measured 99%).
 - [x] Branch ruleset, CODEOWNERS, PR template, SECURITY.md and agent guard rails written ([governance.md](governance.md)); ruleset applied only after owner confirmation.
-- [ ] Fuzz malformed messages, parts and metadata.
-- [ ] Validate safe URL/file handling before enabling richer parts.
-- [ ] Define local-only, LAN and externally exposed security profiles.
+- [x] Fuzz malformed messages, parts and metadata (`tests/test_fuzz.py`, property-based, REST and JSON-RPC, raw bytes, task queries, backend stream lines). It found and fixed two defects: non-UTF-8 bodies returned an internal error, and wrongly shaped backend stream events crashed the stream parser.
+- [x] Validate safe URL/file handling before enabling richer parts: file, URL and data parts are rejected on both bindings (tested with `file:` and cloud-metadata URLs); the SSRF policy that must gate any future fetch is written and tested first (`safe_urls.py`, 50 cases).
+- [x] Define local-only, LAN and externally exposed security profiles (`LEMONADE_A2A_PROFILE`): unsafe combinations refuse to start; table in [security.md](security.md).
 - [x] Publish a formal security policy ([SECURITY.md](../SECURITY.md)).
 
 ## P1 — Prove local-AI-system portability
@@ -108,10 +108,10 @@ A2A must remain independent of the accelerator selected by Lemonade.
 
 - [x] llama.cpp CUDA, Vulkan and CPU, two models, same adapter and behavior (backend verified from the running `llama-server` path).
 - [x] No A2A protocol behavior or Agent Card content depends on AMD-specific metadata (tested).
-- [ ] An NPU path (Ryzen AI / FastFlowLM) and an engine other than llama.cpp (ONNX Runtime/OGA); needs hardware this project's test machine lacks.
-- [ ] ROCm and Metal paths where hardware allows.
-- [ ] Keep optional hardware metadata informational and extension-based.
-- [ ] Use **local AI system** terminology in generic architecture documentation; reserve AMD-specific language for AMD challenge/optimization material.
+- [ ] An NPU path (Ryzen AI / FastFlowLM) and an engine other than llama.cpp (ONNX Runtime/OGA). **Blocked on hardware** this project's test machine lacks; the adapter has no hardware-specific code, so the check is to run the existing validator and benchmark on such a machine.
+- [ ] ROCm and Metal paths where hardware allows. **Blocked on hardware** (same reason).
+- [x] Keep optional hardware metadata informational and extension-based: rule written in [architecture.md](architecture.md) and enforced by tests (no accelerator or vendor term in the Agent Card in any configuration, identical card whatever backend runs, any extension must be optional).
+- [x] Use **local AI system** terminology in generic documentation; AMD-specific language only in [amd-challenge.md](amd-challenge.md) (a test fails if architecture, protocol, security or conformance docs name AMD, Ryzen or ROCm).
 
 ## P2 — Lemonade-native architecture proposal
 
@@ -186,10 +186,10 @@ If Lemonade gains advanced model routing, scheduling or reasoning features, the 
 
 1. ~~Real Lemonade E2E~~ — done (CUDA, Vulkan, CPU; 1.7B and 4B).
 2. ~~TTFT, load and cancellation evidence~~ — done on one machine.
-3. ~~Official A2A TCK~~ — done for the protocol surface; two SHOULD deviations open.
-4. ~~Independent-client interoperability~~ — done for the CLI, JS SDK and Inspector validators.
-5. **AMD hardware evidence** ← next — NPU/ROCm and a non-llama.cpp engine, which needs access to such a machine.
-6. **Remaining hardening** — backpressure, per-user isolation, rate limiting, fuzzing.
+3. ~~Official A2A TCK~~ — done for the protocol surface; the two SHOULD deviations are a TCK test artifact, reported upstream (#248) and covered by a workaround run.
+4. ~~Independent-client interoperability~~ — done for the CLI and the JS, Go, .NET and Java SDKs plus the Inspector validators.
+5. ~~Remaining hardening~~ — done: backpressure, per-user isolation, rate limiting, mTLS, profiles, fuzzing.
+6. **AMD hardware evidence** ← next — NPU/ROCm/Metal and a non-llama.cpp engine, which needs access to such a machine.
 7. **Upstream design proposal**, then a **native prototype** of the smallest accepted vertical slice.
 
 This ordering keeps the repository evidence-driven and maximizes the chance that the work can be adopted upstream.

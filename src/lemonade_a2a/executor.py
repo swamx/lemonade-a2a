@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass, field
 
 import httpx
 from a2a.server.agent_execution.agent_executor import AgentExecutor
@@ -32,6 +33,27 @@ def describe_backend_error(exc: httpx.HTTPError) -> str:
     return "Lemonade backend is unavailable."
 
 
+@dataclass
+class _Progress:
+    """What a task has streamed so far, so a failure can close the artifact cleanly."""
+
+    artifact_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    emitted: bool = False
+    closed: bool = False
+
+
+async def _close_partial_artifact(updater: TaskUpdater, progress: _Progress) -> None:
+    if progress.emitted and not progress.closed:
+        await updater.add_artifact(
+            parts=[Part(text="")],
+            artifact_id=progress.artifact_id,
+            name=ARTIFACT_NAME,
+            append=True,
+            last_chunk=True,
+        )
+        progress.closed = True
+
+
 class LemonadeAgentExecutor(AgentExecutor):
     """Execute A2A text tasks using a Lemonade OpenAI-compatible endpoint.
 
@@ -44,7 +66,13 @@ class LemonadeAgentExecutor(AgentExecutor):
     on concurrently running tasks (excess tasks are ``REJECTED``). A client that
     disconnects from a stream does not cancel its task (A2A tasks outlive
     connections and can be resubscribed); the deadline bounds abandoned work and
-    ``CancelTask`` stops it explicitly.
+    ``CancelTask`` stops it explicitly. ``cancel_on_disconnect`` opts into the
+    opposite policy for the streaming request that started a task: when that
+    client goes away the task is cancelled like an explicit ``CancelTask``.
+
+    A stream that fails part-way (backend error or deadline) closes its artifact
+    with ``last_chunk`` before the task becomes ``FAILED``, so clients never see
+    an artifact that is left open.
     """
 
     def __init__(
@@ -55,12 +83,14 @@ class LemonadeAgentExecutor(AgentExecutor):
         max_input_parts: int = DEFAULT_MAX_INPUT_PARTS,
         max_task_seconds: float = DEFAULT_MAX_TASK_SECONDS,
         max_concurrent_tasks: int = DEFAULT_MAX_CONCURRENT_TASKS,
+        cancel_on_disconnect: bool = False,
     ) -> None:
         self.client = client
         self.max_input_chars = max_input_chars
         self.max_input_parts = max_input_parts
         self.max_task_seconds = max_task_seconds
         self.max_concurrent_tasks = max_concurrent_tasks
+        self.cancel_on_disconnect = cancel_on_disconnect
         self._active: dict[str, asyncio.Task[None]] = {}
         self._active_lock = asyncio.Lock()
 
@@ -115,47 +145,85 @@ class LemonadeAgentExecutor(AgentExecutor):
                 return
             await updater.start_work()
 
+            watcher, fired = self._watch_disconnect(context, event_queue)
+            progress = _Progress()
             try:
                 async with asyncio.timeout(self.max_task_seconds):
-                    await self._stream_artifact(updater, query)
+                    await self._stream_artifact(updater, query, progress)
             except TimeoutError:
                 LOG.warning("Task %s exceeded %.0fs deadline", task_id, self.max_task_seconds)
-                await updater.failed(
-                    updater.new_agent_message([Part(text="Task exceeded its time limit.")])
-                )
+                await self._fail(updater, progress, "Task exceeded its time limit.")
                 return
             except httpx.HTTPError as exc:
                 LOG.warning("Lemonade request failed for task %s: %r", task_id, exc)
-                await updater.failed(
-                    updater.new_agent_message([Part(text=describe_backend_error(exc))])
-                )
+                await self._fail(updater, progress, describe_backend_error(exc))
                 return
+            except ValueError as exc:  # unparseable stream from the backend
+                LOG.warning("Lemonade sent an unreadable response for task %s: %r", task_id, exc)
+                await self._fail(updater, progress, "Lemonade returned an unreadable response.")
+                return
+            finally:
+                if watcher is not None:
+                    if fired.is_set():  # let it finish publishing the CANCELED status
+                        await asyncio.gather(watcher, return_exceptions=True)
+                    else:
+                        watcher.cancel()
             await updater.complete()
         finally:
             async with self._active_lock:
                 if self._active.get(task_id) is current:
                     self._active.pop(task_id, None)
 
-    async def _stream_artifact(self, updater: TaskUpdater, query: str) -> None:
-        artifact_id = uuid.uuid4().hex
-        emitted = False
+    @staticmethod
+    async def _fail(updater: TaskUpdater, progress: _Progress, text: str) -> None:
+        await _close_partial_artifact(updater, progress)
+        await updater.failed(updater.new_agent_message([Part(text=text)]))
+
+    def _watch_disconnect(
+        self, context: RequestContext, event_queue: EventQueue
+    ) -> tuple[asyncio.Task[None] | None, asyncio.Event]:
+        """Cancel this task when the request that started it disconnects (opt-in).
+
+        Returns the watcher (None when the mode is off or the request has no
+        disconnect signal) and an event that is set once the watcher has fired.
+        """
+        fired = asyncio.Event()
+        if not self.cancel_on_disconnect:
+            return None, fired
+        disconnected = context.call_context.state.get("disconnected")
+        if disconnected is None:
+            return None, fired
+
+        async def watch() -> None:
+            await disconnected.wait()
+            fired.set()
+            LOG.info("Client of task %s disconnected; cancelling it", context.task_id)
+            await self.cancel(context, event_queue)
+
+        return asyncio.create_task(watch()), fired
+
+    async def _stream_artifact(
+        self, updater: TaskUpdater, query: str, progress: _Progress | None = None
+    ) -> None:
+        progress = progress or _Progress()
         async for text in self.client.stream([{"role": "user", "content": query}]):
             await updater.add_artifact(
                 parts=[Part(text=text)],
-                artifact_id=artifact_id,
+                artifact_id=progress.artifact_id,
                 name=ARTIFACT_NAME,
-                append=emitted,
+                append=progress.emitted,
                 last_chunk=False,
             )
-            emitted = True
+            progress.emitted = True
 
         await updater.add_artifact(
             parts=[Part(text="")],
-            artifact_id=artifact_id,
+            artifact_id=progress.artifact_id,
             name=ARTIFACT_NAME,
-            append=emitted,
+            append=progress.emitted,
             last_chunk=True,
         )
+        progress.closed = True
 
     async def shutdown(self) -> None:
         """Cancel in-flight inference and wait for it to unwind (server shutdown)."""

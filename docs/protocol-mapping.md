@@ -109,8 +109,21 @@ Future mappings may include:
 | `CancelTask` on a running task | Inference coroutine cancelled, task `TASK_STATE_CANCELED` |
 | `CancelTask` on a finished task | HTTP+JSON: 409 (`TASK_NOT_CANCELABLE`); JSON-RPC: error response |
 | Unsupported `A2A-Version` | Version-not-supported error |
+| Request body that is not valid UTF-8 | JSON-RPC `-32700` (parse error); HTTP+JSON 400 `INVALID_ARGUMENT` |
+| Caller exceeds `LEMONADE_A2A_RATE_LIMIT_PER_MINUTE` | HTTP 429 `RESOURCE_EXHAUSTED` with `Retry-After` (both bindings; this is HTTP-level, before the A2A layer) |
+| Another caller's task id (any operation) | Same as an unknown task: `TASK_NOT_FOUND` / 404 |
 
-Streaming emits one artifact (`lemonade-response`) chunk per Lemonade delta, then a closing empty chunk with `last_chunk=true`. A client disconnecting from a stream does **not** cancel the task: A2A tasks outlive connections and can be resubscribed, so the task runs to completion or its deadline, and `CancelTask` stops it explicitly. Stream-level queue bounds are not implemented.
+Streaming emits one artifact (`lemonade-response`) chunk per Lemonade `content` delta (a reasoning model's `reasoning_content` is not part of the answer and is not forwarded; a response that is all reasoning completes with an empty artifact), then a closing empty chunk with `last_chunk=true`. A client disconnecting from a stream does **not** cancel the task by default: A2A tasks outlive connections and can be resubscribed, so the task runs to completion or its deadline, and `CancelTask` stops it explicitly.
+
+| Situation | Behaviour |
+|---|---|
+| Client leaves a streaming request (default) | Task keeps running to completion or its deadline; it can be fetched or resubscribed |
+| Same, with `LEMONADE_A2A_CANCEL_ON_DISCONNECT=1` | The task started by *that* streaming request is cancelled exactly like `CancelTask` (state `CANCELED`, the Lemonade request stops). A resubscriber leaving never cancels the task |
+| Client connects and stops reading | The SDK's bounded event queue fills, the adapter stops pulling tokens from Lemonade, other clients are unaffected, and the task ends `FAILED` at its deadline |
+| Stream fails or hits the deadline after some output | The `lemonade-response` artifact is closed with `last_chunk=true`, then the task becomes `FAILED` (never an artifact left open) |
+| Stream fails before any output | No artifact is created; the task becomes `FAILED` |
+| Backend sends an unparseable or wrongly shaped stream event | `FAILED`, "Lemonade returned an unreadable response." |
+| Cancelled mid-stream | The partial artifact is left as streamed (the terminal state is `CANCELED`); it is not closed, because the cancel path publishes the terminal status itself |
 
 ## Errors
 

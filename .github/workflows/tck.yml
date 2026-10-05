@@ -48,8 +48,16 @@ jobs:
           python -m pip install -e '.[dev]'
           uv venv a2a-tck/.venv
           VIRTUAL_ENV="$PWD/a2a-tck/.venv" uv pip install -e a2a-tck
-      - name: Run the TCK
+      - name: Run the TCK (official, unpatched)
+        # Fails on any deviation other than the two known TCK artifacts (issue #248).
         run: python scripts/run_tck.py --tck-dir a2a-tck --output tck-results.json
+      - name: Run the TCK with the messageId workaround
+        # Workaround while a2aproject/a2a-tck#248 is open: the patch gives each follow-up
+        # message its own messageId. This run must be completely clean. If the patch stops
+        # applying, the TCK changed: re-check the issue and drop or refresh the patch.
+        run: >
+          python scripts/run_tck.py --tck-dir a2a-tck
+          --patch tck/patches/unique-message-ids.patch --output tck-results-patched.json
       - name: Summary
         if: always()
         run: |
@@ -72,5 +80,6 @@ jobs:
           name: tck-results
           path: |
             tck-results.json
+            tck-results-patched.json
             a2a-tck/reports/
           if-no-files-found: ignore

@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from lemonade_a2a import __version__
@@ -119,3 +121,49 @@ def test_tls_files_must_be_given_together() -> None:
     with pytest.raises(ValueError):
         Settings(ssl_certfile="cert.pem")
     Settings(ssl_certfile="cert.pem", ssl_keyfile="key.pem")
+
+
+ACCELERATOR_TERMS = (
+    "amd",
+    "ryzen",
+    "rocm",
+    "cuda",
+    "vulkan",
+    "nvidia",
+    "intel",
+    "npu",
+    "gpu",
+    "metal",
+    "xdna",
+    "onnx",
+    "llama.cpp",
+    "flm",
+)
+
+
+def test_agent_card_names_no_accelerator_or_vendor_in_any_configuration() -> None:
+    """Hardware stays out of the protocol: same card text whatever Lemonade runs on."""
+    from google.protobuf.json_format import MessageToJson
+
+    variants = [
+        Settings(),
+        Settings(model="Bonsai-1.7B-gguf", lemonade_base_url="http://gpu-box:13305/v1"),
+        Settings(api_keys="a:b", profile="lan", host="0.0.0.0", rate_limit_per_minute=5),
+    ]
+    for settings in variants:
+        text = MessageToJson(build_agent_card(settings)).lower()
+        found = [t for t in ACCELERATOR_TERMS if re.search(rf"\b{re.escape(t)}\b", text)]
+        assert not found, (settings, found)
+
+
+def test_agent_card_does_not_depend_on_the_backend_choice() -> None:
+    a = build_agent_card(Settings(model="small-cpu-model", lemonade_base_url="http://a:1/v1"))
+    b = build_agent_card(Settings(model="big-gpu-model", lemonade_base_url="http://b:2/v1"))
+
+    assert a == b
+
+
+def test_any_card_extension_is_optional() -> None:
+    """Optional, namespaced extensions are the only place hardware information may go."""
+    for extension in build_agent_card(Settings()).capabilities.extensions:
+        assert not extension.required

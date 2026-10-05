@@ -1,0 +1,14 @@
+{
+  "model": "Gemma-3-4b-it-GGUF",
+  "idle_small_request_ms": 373,
+  "default": {
+    "cancel_on_disconnect": false,
+    "small_request_after_disconnect_ms": 15120,
+    "task_state_after": "TASK_STATE_COMPLETED"
+  },
+  "cancel_on_disconnect": {
+    "cancel_on_disconnect": true,
+    "small_request_after_disconnect_ms": 1140,
+    "task_state_after": "TASK_STATE_CANCELED"
+  }
+}

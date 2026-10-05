@@ -1,0 +1,18 @@
+diff --git a/tests/compatibility/_task_helpers.py b/tests/compatibility/_task_helpers.py
+index cfe164b..2d2ffef 100644
+--- a/tests/compatibility/_task_helpers.py
++++ b/tests/compatibility/_task_helpers.py
+@@ -155,11 +155,11 @@ def create_multiturn_task_with_history(
+     """
+     info = create_working_task(client)
+ 
+-    for text in HISTORY_MESSAGES:
++    for index, text in enumerate(HISTORY_MESSAGES):
+         msg: dict[str, Any] = {
+             "role": "ROLE_USER",
+             "parts": [{"text": text}],
+-            "messageId": tck_id("input-required"),
++            "messageId": f"{tck_id('input-required')}-followup-{index}",
+             "taskId": info.task_id,
+         }
+         response = client.send_message(message=msg)
