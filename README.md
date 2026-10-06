@@ -226,12 +226,10 @@ Before implementing the native C++ surface, the reference adapter should pass re
 
 ## Recommended next steps
 
-1. Re-run the 12B benchmark cells on a quieter machine and diagnose the direct-path "no text chunks" failure; review the first GitHub runs of the TCK and benchmark jobs.
-2. Validate on AMD hardware: NPU and ROCm paths and a non-llama.cpp engine (not possible on the NVIDIA/Intel machine used so far).
-3. Persist tasks (the store is in memory) and decide whether the adapter should read an OIDC token subject for task ownership.
-4. File the drafted upstream TCK issue (needs owner approval).
-5. Draft the native Lemonade A2A API boundary and map it onto Lemonade's HTTP/router architecture.
-6. Only then prototype the native C++ A2A endpoint and propose it upstream.
+1. **Compatibility specification** ([draft](docs/specification.md)): a feature registry, `lemonade-a2a doctor` to cross-validate `a2a-sdk`, `lemonade-a2a` and Lemonade after an upgrade, strict/warn compatibility modes, an extension API and a canary CI matrix.
+2. **OpenTelemetry observability** ([draft](docs/observability.md)): opt-in traces, metrics and logs with standard `OTEL_*` configuration, private by default, with a measured overhead budget.
+3. **Carry-over evidence**: re-run the 12B benchmark cells (a reasoning model), real inference on a second machine, and the NPU/ROCm/Metal and non-llama.cpp checks when such hardware is available.
+4. Draft the native Lemonade A2A API boundary and map it onto Lemonade's HTTP/router architecture, then prototype the native endpoint and propose it upstream.
 
 See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 
@@ -240,6 +238,8 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 - [Architecture](docs/architecture.md)
 - [Protocol mapping](docs/protocol-mapping.md)
 - [Security](docs/security.md)
+- [Compatibility specification (draft)](docs/specification.md)
+- [Observability with OpenTelemetry (draft)](docs/observability.md)
 - [Conformance](docs/conformance.md)
 - [Interoperability](docs/interoperability.md)
 - [Real Lemonade validation](docs/real-lemonade-validation.md)
