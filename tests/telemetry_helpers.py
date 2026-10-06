@@ -75,6 +75,15 @@ class Recorder:
                 total += getattr(point, "value", getattr(point, "count", 0))
         return total
 
+    def sum(self, metric: str, **where) -> float:
+        """Sum of the recorded values of a histogram (e.g. tokens)."""
+        self.settle()
+        return sum(
+            getattr(point, "sum", 0.0)
+            for attributes, point in self.points(metric)
+            if all(attributes.get(k) == v for k, v in where.items())
+        )
+
     def series_count(self) -> dict[str, int]:
         counts: dict[str, int] = defaultdict(int)
         data = self.reader.get_metrics_data()

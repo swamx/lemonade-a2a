@@ -16,6 +16,7 @@ from a2a.server.routes import (
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
+    AgentExtension,
     AgentInterface,
     AgentSkill,
     HTTPAuthSecurityScheme,
@@ -26,11 +27,10 @@ from a2a.types import (
 from fastapi import FastAPI
 from starlette.routing import BaseRoute, Mount
 
-from . import __version__
+from . import __version__, builtin, compat, registry
 from .call_context import LemonadeCallContextBuilder
 from .config import Settings
 from .executor import LemonadeAgentExecutor
-from .lemonade_client import LemonadeClient
 from .logging_setup import configure_logging
 from .middleware import (
     BodySizeLimitMiddleware,
@@ -39,13 +39,13 @@ from .middleware import (
     TelemetryMiddleware,
     add_agent_card_cache_headers,
     add_security_headers,
+    authenticate_with,
     normalize_rest_response,
     rate_limit,
     reject_invalid_utf8,
     reject_unsupported_content_type,
     require_api_key,
 )
-from .task_store import BoundedTaskStore
 from .telemetry import Telemetry, prometheus_payload, setup_telemetry
 
 LOG = logging.getLogger("lemonade_a2a")
@@ -65,12 +65,55 @@ def _security(settings: Settings) -> dict:
     }
 
 
+CAPABILITIES_PATH = "/.well-known/lemonade-a2a/capabilities"
+CAPABILITIES_EXTENSION = "urn:lemonade-a2a:ext:capabilities:v1"
+
+
+def _extensions(settings: Settings) -> list[AgentExtension]:
+    """Optional, never-required pointer to the richer capabilities description."""
+    if not settings.expose_capabilities:
+        return []
+    extension = AgentExtension(
+        uri=CAPABILITIES_EXTENSION,
+        description="Feature registry and component versions for this adapter.",
+        required=False,
+    )
+    extension.params.update(
+        {
+            "url": settings.public_url + CAPABILITIES_PATH,
+            "specVersion": registry.registry()["spec_version"],
+        }
+    )
+    return [extension]
+
+
+def capabilities_payload(settings: Settings, compat_status: str) -> dict:
+    """What ``GET /.well-known/lemonade-a2a/capabilities`` returns (authenticated, opt-in)."""
+    return {
+        "spec_version": registry.registry()["spec_version"],
+        "adapter": __version__,
+        "components": {
+            "a2a_sdk": compat.installed_version("a2a-sdk"),
+            "python": compat.platform.python_version(),
+        },
+        "compat": {"mode": settings.compat, "status": compat_status},
+        "features": [
+            {"id": r.id, "state": r.state, "active": r.active, "config": r.config}
+            for r in registry.resolve(settings)
+        ],
+    }
+
+
 def build_agent_card(settings: Settings) -> AgentCard:
     return AgentCard(
         name=settings.agent_name,
         description=settings.agent_description,
         version=__version__,
-        capabilities=AgentCapabilities(streaming=True, push_notifications=False),
+        capabilities=AgentCapabilities(
+            streaming=settings.streaming,
+            push_notifications=False,
+            extensions=_extensions(settings),
+        ),
         default_input_modes=["text"],
         default_output_modes=["text", "task-status"],
         skills=[
@@ -131,15 +174,12 @@ def create_app(
     """Build the A2A app. ``executor`` lets tests/conformance runs swap the Lemonade executor;
     ``telemetry`` defaults to whatever ``settings`` asks for (off unless LEMONADE_A2A_OTEL=1)."""
     settings = settings or Settings.from_env()
-    telemetry = telemetry if telemetry is not None else setup_telemetry(settings)
+    telemetry = telemetry if telemetry is not None else builtin.create_telemetry(settings)
     agent_card = build_agent_card(settings)
-    client = LemonadeClient(
-        settings.lemonade_base_url,
-        settings.model,
-        timeout=settings.request_timeout_seconds,
-        api_key=settings.lemonade_api_key,
-        telemetry=telemetry,
-    )
+    client = builtin.create_backend(settings, telemetry)
+    task_store = builtin.create_task_store(settings, telemetry)
+    authenticator = builtin.create_authenticator(settings)
+    compat_status = _compat_status(settings)
     agent_executor = executor or LemonadeAgentExecutor(
         client,
         max_input_chars=settings.max_input_chars,
@@ -152,7 +192,7 @@ def create_app(
     )
     request_handler = DefaultRequestHandler(
         agent_executor=agent_executor,
-        task_store=BoundedTaskStore(settings.max_stored_tasks, telemetry=telemetry),
+        task_store=task_store,
         agent_card=agent_card,
     )
     context_builder = LemonadeCallContextBuilder()
@@ -164,6 +204,9 @@ def create_app(
         if shutdown is not None:
             await shutdown()
         await client.aclose()
+        close_store = getattr(task_store, "aclose", None)
+        if close_store is not None:
+            await close_store()
         telemetry.shutdown()
 
     # No interactive docs / OpenAPI: the contract is the A2A Agent Card, and these
@@ -184,6 +227,12 @@ def create_app(
     app.middleware("http")(normalize_rest_response)
     # The card only changes with configuration, i.e. at process start.
     app.middleware("http")(add_agent_card_cache_headers(formatdate(usegmt=True)))
+
+    if settings.expose_capabilities:
+        # Registered before the A2A routes: their catch-all /{tenant} mount would shadow it.
+        @app.get(CAPABILITIES_PATH, include_in_schema=False)
+        async def capabilities() -> dict:
+            return capabilities_payload(settings, compat_status_name(compat_status))
 
     add_a2a_routes_to_fastapi(
         app,
@@ -208,7 +257,9 @@ def create_app(
     if settings.rate_limit_per_minute:
         # Inside authentication, so the budget is per authenticated identity.
         app.middleware("http")(rate_limit(RateLimiter(settings.rate_limit_per_minute), telemetry))
-    if settings.credentials:
+    if authenticator is not None:
+        app.middleware("http")(authenticate_with(authenticator, telemetry))
+    elif settings.credentials:
         # Added last so it is outermost: unauthenticated requests do no other work.
         app.middleware("http")(require_api_key(settings.credentials, telemetry))
     app.add_middleware(DisconnectSignalMiddleware)
@@ -219,6 +270,8 @@ def create_app(
     # Outermost of all, so refused requests (401, 413, 429) are traced and counted too.
     app.add_middleware(TelemetryMiddleware, telemetry=telemetry)
     app.state.telemetry = telemetry
+    telemetry.set_compat_status(compat_status)
+    app.state.compat_status = compat_status
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, str]:
@@ -269,12 +322,52 @@ def startup_warnings(settings: Settings) -> list[str]:
     return warnings
 
 
+def _compat_status(settings: Settings) -> int:
+    """0 pass, 1 warn, 2 fail for the checks that need no network (``doctor`` runs the rest)."""
+    if settings.compat == "off":
+        return 0
+    return compat.exit_code(compat.local_checks(settings))
+
+
+def compat_status_name(code: int) -> str:
+    return {0: "pass", 1: "warn", 2: "fail", 3: "unknown"}.get(code, "unknown")
+
+
+def startup_gate(settings: Settings) -> None:
+    """Apply ``LEMONADE_A2A_COMPAT``: log failed checks, and refuse to start in ``strict``."""
+    if settings.compat == "off":
+        return
+    checks = compat.local_checks(settings)
+    problems = [c for c in checks if c.verdict != compat.PASS]
+    for check in problems:
+        LOG.warning(
+            "compat %s: %s - %s",
+            check.verdict,
+            check.title,
+            check.detail,
+            extra={"event": "compat.check", "verdict": check.verdict},
+        )
+    if settings.compat == "strict" and problems:
+        raise SystemExit(
+            "refusing to start (LEMONADE_A2A_COMPAT=strict): "
+            + "; ".join(f"{c.title}: {c.detail}" for c in problems)
+        )
+
+
 def main() -> None:
+    serve(Settings.from_env())
+
+
+def serve(settings: Settings) -> None:
     import uvicorn
 
-    settings = Settings.from_env()
     configure_logging(settings.log_format)
-    telemetry = setup_telemetry(settings, set_global=True)
+    startup_gate(settings)
+    telemetry = (
+        builtin.create_telemetry(settings)
+        if settings.telemetry_plugin
+        else setup_telemetry(settings, set_global=True)
+    )
     LOG.info(
         "Starting Lemonade A2A on %s:%s (profile %s)",
         settings.host,

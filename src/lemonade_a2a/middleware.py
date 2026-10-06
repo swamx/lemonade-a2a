@@ -93,6 +93,31 @@ def require_api_key(api_keys: dict[str, str] | str, telemetry: Telemetry = NOOP)
     return middleware
 
 
+def authenticate_with(authenticator, telemetry: Telemetry = NOOP):
+    """Middleware factory for a plugin :class:`~lemonade_a2a.plugins.Authenticator`.
+
+    Same contract as :func:`require_api_key`: discovery and ``/healthz`` stay public, an
+    unauthenticated call is a 401, and the identity returned becomes the task owner.
+    """
+
+    async def middleware(request, call_next):
+        if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
+            return await call_next(request)
+        try:
+            identity = await authenticator.authenticate(dict(request.headers))
+        except Exception:  # noqa: BLE001 - a failing authenticator denies, it never lets a request through
+            identity = None
+        if not identity:
+            telemetry.rejected("auth")
+            return _error_response(
+                401, "UNAUTHENTICATED", "Authentication required", {"WWW-Authenticate": "Bearer"}
+            )
+        request.scope["user"] = SimpleUser(identity)
+        return await call_next(request)
+
+    return middleware
+
+
 class RateLimiter:
     """Token bucket per identity: ``per_minute`` requests, refilled continuously.
 

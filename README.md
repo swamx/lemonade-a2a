@@ -86,6 +86,10 @@ Validated so far (details: [roadmap](docs/roadmap.md), [benchmarks](docs/benchma
 - automatic Agent Card, SSE streaming into A2A artifacts, cancellation that stops the real backend generation, backend failures mapped to `FAILED` tasks;
 - resource bounds (input size/parts, per-task deadline, concurrency cap with `REJECTED`, bounded task store, slow-consumer backpressure), exposure profiles, API-key auth with several named callers and per-user task isolation, rate limiting, TLS and mutual TLS, graceful shutdown, optional cancel-on-disconnect;
 - property-based fuzzing of messages, parts, metadata and backend stream output (it found and fixed two real defects);
+- **a compatibility specification you can run**: `lemonade-a2a doctor` cross-validates the installed `a2a-sdk`, `lemonade-a2a` and Lemonade after an upgrade against a generated manifest and a [feature registry](docs/features.md); `strict`/`warn` startup modes, feature flags, layered config, a support bundle, and a weekly canary against the lowest, latest and pre-release SDK ([specification](docs/specification.md), [upgrading](docs/upgrading.md));
+- **OpenTelemetry observability**: opt-in traces, metrics and logs with standard `OTEL_*` configuration, private by default (prompts are never exported unless you opt in), a measured overhead budget, and a ready dashboard and alerts ([observability](docs/observability.md));
+- an **extension API** (backends, task stores, authenticators, telemetry) with a persistent SQLite task store as the reference plugin ([extending](docs/extending.md));
+- reasoning models and backend errors handled honestly: thinking is dropped (or opt-in streamed as a separate artifact), and an error Lemonade reports *inside* a 200 stream fails the task instead of completing it empty;
 - the **official A2A TCK** against the protocol surface: 157 passed, 0 failed, 4 expected-fail (SHOULD), the rest skipped for capabilities not declared (see [conformance](docs/conformance.md) for scope);
 - **independent clients** (A2A CLI, and the JavaScript, Go, .NET and Java SDKs, plus the Inspector's validators) pass over JSON-RPC and HTTP+JSON, on the mock and on real Lemonade ([interoperability](docs/interoperability.md));
 - CI on Python 3.11-3.13 (ruff, ruff format, pytest) plus a deterministic mock-Lemonade end-to-end job;
@@ -136,6 +140,15 @@ export LEMONADE_MODEL=your-model
 lemonade-a2a                    # serves on http://127.0.0.1:9100
 ```
 
+After installing or upgrading anything (`pip install -U a2a-sdk lemonade-a2a`), check the combination:
+
+```bash
+lemonade-a2a doctor             # versions, config, Lemonade, a tiny generation with --deep
+lemonade-a2a capabilities       # what is on, what is available and how to switch it
+lemonade-a2a config show        # effective settings and where each value came from
+lemonade-a2a support-bundle     # a redacted archive for a bug report
+```
+
 The adapter expects a running Lemonade server exposing an OpenAI-compatible endpoint. It listens on **9100** by default because a stock Lemonade install already uses port 9000 for its WebSocket.
 
 ### Configuration
@@ -161,8 +174,18 @@ The adapter expects a running Lemonade server exposing an OpenAI-compatible endp
 | `LEMONADE_API_KEY` | empty | Key sent to a protected Lemonade server |
 | `LEMONADE_A2A_SSL_CERTFILE` / `LEMONADE_A2A_SSL_KEYFILE` | empty | Serve HTTPS (set both; use an `https://` public URL) |
 | `LEMONADE_A2A_SSL_CA_CERTS` / `LEMONADE_A2A_SSL_REQUIRE_CLIENT_CERT` | empty / `0` | Mutual TLS: refuse clients without a certificate signed by this CA |
+| `LEMONADE_A2A_REASONING` | `drop` | A reasoning model's thinking: `drop`, or `artifact` to stream it as a separate `lemonade-reasoning` artifact |
+| `LEMONADE_A2A_TASK_STORE` / `LEMONADE_A2A_TASK_DB` | `memory` / `lemonade-a2a-tasks.sqlite` | `sqlite` keeps tasks across restarts (needs `lemonade-a2a[sqlite]`; the file holds prompts and answers) |
+| `LEMONADE_A2A_COMPAT` | `warn` | Startup compatibility gate: `off`, `warn` or `strict` (refuse to start on any failed or warned check) |
+| `LEMONADE_A2A_FEATURES` | empty | Toggle registry features: `+adapter.cancel_on_disconnect,-a2a.streaming` (see `lemonade-a2a capabilities`) |
+| `LEMONADE_A2A_EXPOSE_CAPABILITIES` | `0` | Serve the authenticated `/.well-known/lemonade-a2a/capabilities` endpoint and an optional card extension |
+| `LEMONADE_A2A_OTEL` | `0` | Turn on OpenTelemetry (needs `lemonade-a2a[otel]`); exporters, sampling and resource come from the standard `OTEL_*` variables |
+| `LEMONADE_A2A_OTEL_CAPTURE` | `none` | `none`, `metadata` (adds ids) or `content` (adds truncated prompt/response text; local use only) |
+| `LEMONADE_A2A_OTEL_PROMETHEUS` / `LEMONADE_A2A_LOG_FORMAT` | `0` / `text` | Serve an authenticated `/metrics`; `json` logs carry `trace_id` and `span_id` |
+| `LEMONADE_A2A_BACKEND` / `_AUTHENTICATOR` / `_TELEMETRY_PLUGIN` | `lemonade` / empty / empty | Select an [extension](docs/extending.md) by name |
+| `LEMONADE_A2A_CONFIG` | empty | A TOML file (`[lemonade_a2a]` table of setting names); environment and command-line flags override it |
 
-Invalid values fail at startup. See [examples/](examples/) for an Agent Card and a client, and [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) for validating against a real Lemonade install.
+Every setting can also be given in a TOML file or as a command-line flag (`lemonade-a2a --config c.toml serve --port 9200`); precedence is defaults, file, environment, command line, and `lemonade-a2a config schema` prints a JSON Schema of all of them. Invalid values fail at startup. See [examples/](examples/) for an Agent Card and a client, and [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) for validating against a real Lemonade install.
 
 ## Design principles
 
@@ -226,10 +249,9 @@ Before implementing the native C++ surface, the reference adapter should pass re
 
 ## Recommended next steps
 
-1. **Compatibility specification** ([draft](docs/specification.md)): a feature registry, `lemonade-a2a doctor` to cross-validate `a2a-sdk`, `lemonade-a2a` and Lemonade after an upgrade, strict/warn compatibility modes, an extension API and a canary CI matrix.
-2. **OpenTelemetry observability** ([draft](docs/observability.md)): opt-in traces, metrics and logs with standard `OTEL_*` configuration, private by default, with a measured overhead budget.
-3. **Carry-over evidence**: re-run the 12B benchmark cells (a reasoning model), real inference on a second machine, and the NPU/ROCm/Metal and non-llama.cpp checks when such hardware is available.
-4. Draft the native Lemonade A2A API boundary and map it onto Lemonade's HTTP/router architecture, then prototype the native endpoint and propose it upstream.
+1. **Hardware evidence**: NPU, ROCm, Metal and non-llama.cpp engines need a machine with that hardware; the adapter has no hardware-specific code, so the check is to run `lemonade-a2a doctor --deep`, the validation script and the benchmarks there.
+2. **Real inference on a second machine**, and a first PyPI release (needs the owner's approval; the package build and manifest generation are ready).
+3. Draft the native Lemonade A2A API boundary and map it onto Lemonade's HTTP/router architecture, claiming features by the registry's ids and passing the same contract tests; then prototype the native endpoint and propose it upstream.
 
 See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 
@@ -238,8 +260,8 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 - [Architecture](docs/architecture.md)
 - [Protocol mapping](docs/protocol-mapping.md)
 - [Security](docs/security.md)
-- [Compatibility specification (draft)](docs/specification.md)
-- [Observability with OpenTelemetry (draft)](docs/observability.md)
+- [Compatibility specification](docs/specification.md), [feature registry](docs/features.md), [upgrading and versioning](docs/upgrading.md), [extending](docs/extending.md)
+- [Observability with OpenTelemetry](docs/observability.md) and the [ready-made stack](examples/observability/README.md)
 - [Conformance](docs/conformance.md)
 - [Interoperability](docs/interoperability.md)
 - [Real Lemonade validation](docs/real-lemonade-validation.md)

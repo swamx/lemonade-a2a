@@ -1,0 +1,563 @@
+{
+  "schema_version": 1,
+  "spec_version": "0.1",
+  "features": [
+    {
+      "id": "a2a.protocol.1_0",
+      "title": "A2A protocol 1.0",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tck:official",
+        "tests/test_protocol_version.py::test_agent_card_advertises_a2a_v1"
+      ]
+    },
+    {
+      "id": "a2a.protocol.0_3_compat",
+      "title": "A2A 0.3 compatibility layer",
+      "state": "unsupported",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "The SDK's v0.3 compatibility routes are disabled; 0.3 clients are not served."
+    },
+    {
+      "id": "a2a.binding.jsonrpc",
+      "title": "JSON-RPC binding",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tck:official",
+        "interop:clients",
+        "tests/test_protocol_version.py::test_agent_card_has_jsonrpc_and_http_json_bindings"
+      ]
+    },
+    {
+      "id": "a2a.binding.http_json",
+      "title": "HTTP+JSON (REST) binding",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tck:official",
+        "interop:clients",
+        "tests/test_protocol_version.py::test_rest_routes_resolve_at_base_and_legacy_prefix"
+      ]
+    },
+    {
+      "id": "a2a.binding.grpc",
+      "title": "gRPC binding",
+      "state": "unsupported",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Decision recorded in docs/conformance.md: no consumer, adds a dependency and a second listener."
+    },
+    {
+      "id": "a2a.streaming",
+      "title": "Streaming (SSE) responses",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_FEATURES=-a2a.streaming",
+      "toggle": {
+        "setting": "streaming",
+        "on": true,
+        "off": false,
+        "core": true
+      },
+      "verified_by": [
+        "tck:official",
+        "tests/test_executor.py::test_executor_emits_task_and_completion_events",
+        "tests/test_live_lifecycle.py::test_disconnect_does_not_cancel_by_default"
+      ],
+      "notes": "A core feature: switching it off changes the Agent Card and the streaming methods answer 'unsupported'."
+    },
+    {
+      "id": "a2a.task.cancel",
+      "title": "CancelTask",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tck:official",
+        "tests/test_cancellation.py::test_executor_tracks_and_cancels_active_coroutine",
+        "tests/test_live_lifecycle.py::test_repeated_cancel_races_leave_no_task_running"
+      ]
+    },
+    {
+      "id": "a2a.task.list",
+      "title": "ListTasks / GetTask",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tck:official",
+        "tests/test_identity_and_limits.py::test_users_cannot_read_list_or_cancel_each_others_tasks"
+      ]
+    },
+    {
+      "id": "a2a.task.subscribe",
+      "title": "SubscribeToTask",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tck:official",
+        "tests/test_live_lifecycle.py::test_cancel_on_disconnect_ignores_a_subscriber_leaving"
+      ]
+    },
+    {
+      "id": "a2a.push_notifications",
+      "title": "Push notifications",
+      "state": "unsupported",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Needs the URL policy in safe_urls.py wired in first (SSRF)."
+    },
+    {
+      "id": "a2a.extended_agent_card",
+      "title": "Extended Agent Card",
+      "state": "unsupported",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "No authenticated-only information to expose."
+    },
+    {
+      "id": "a2a.parts.text",
+      "title": "Text parts",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_executor.py::test_executor_emits_task_and_completion_events"
+      ]
+    },
+    {
+      "id": "a2a.parts.file",
+      "title": "File parts",
+      "state": "unsupported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_safe_urls.py::test_file_url_and_data_parts_are_refused_on_both_bindings"
+      ],
+      "notes": "Rejected with CONTENT_TYPE_NOT_SUPPORTED; the evidence shows the rejection."
+    },
+    {
+      "id": "a2a.parts.url",
+      "title": "URL parts",
+      "state": "unsupported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_safe_urls.py::test_file_url_and_data_parts_are_refused_on_both_bindings"
+      ]
+    },
+    {
+      "id": "a2a.parts.data",
+      "title": "Structured data parts",
+      "state": "unsupported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_safe_urls.py::test_file_url_and_data_parts_are_refused_on_both_bindings"
+      ]
+    },
+    {
+      "id": "adapter.profile",
+      "title": "Exposure profiles (local, lan, external)",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_PROFILE",
+      "verified_by": [
+        "tests/test_identity_and_limits.py::test_external_profile_needs_auth_tls_and_rate_limit",
+        "tests/test_identity_and_limits.py::test_local_profile_refuses_a_public_bind"
+      ]
+    },
+    {
+      "id": "adapter.auth.api_key",
+      "title": "API-key authentication",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_API_KEY",
+      "active": {
+        "setting": "credentials"
+      },
+      "verified_by": [
+        "tests/test_auth.py::test_bearer_and_x_api_key_are_accepted"
+      ]
+    },
+    {
+      "id": "adapter.auth.multi_key",
+      "title": "Named API keys (per-caller identity)",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_API_KEYS",
+      "active": {
+        "setting": "api_keys"
+      },
+      "verified_by": [
+        "tests/test_identity_and_limits.py::test_each_key_is_its_own_user"
+      ]
+    },
+    {
+      "id": "adapter.task_isolation",
+      "title": "Per-user task isolation",
+      "state": "supported",
+      "since": "0.1.0",
+      "active": {
+        "setting": "credentials"
+      },
+      "verified_by": [
+        "tests/test_identity_and_limits.py::test_users_cannot_read_list_or_cancel_each_others_tasks",
+        "tests/test_identity_and_limits.py::test_a_user_cannot_continue_another_users_task"
+      ]
+    },
+    {
+      "id": "adapter.auth.mtls",
+      "title": "Mutual TLS",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_SSL_REQUIRE_CLIENT_CERT",
+      "active": {
+        "setting": "ssl_require_client_cert"
+      },
+      "verified_by": [
+        "tests/test_mtls.py::test_a_client_with_a_certificate_from_our_ca_is_served",
+        "tests/test_mtls.py::test_a_client_without_a_certificate_cannot_connect"
+      ]
+    },
+    {
+      "id": "adapter.tls",
+      "title": "TLS",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_SSL_CERTFILE",
+      "active": {
+        "setting": "ssl_certfile"
+      },
+      "verified_by": [
+        "tests/test_hardening.py::test_main_forwards_tls_files"
+      ]
+    },
+    {
+      "id": "adapter.ratelimit",
+      "title": "Per-identity rate limiting",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_RATE_LIMIT_PER_MINUTE",
+      "active": {
+        "setting": "rate_limit_per_minute"
+      },
+      "verified_by": [
+        "tests/test_identity_and_limits.py::test_rate_limit_answers_429_with_retry_after_per_identity"
+      ]
+    },
+    {
+      "id": "adapter.resource_bounds",
+      "title": "Input, deadline, concurrency and store bounds",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_executor.py::test_excess_concurrent_tasks_are_rejected",
+        "tests/test_executor.py::test_task_deadline_fails_the_task",
+        "tests/test_task_store.py::test_oldest_finished_tasks_are_evicted_first"
+      ]
+    },
+    {
+      "id": "adapter.backpressure",
+      "title": "Slow-consumer backpressure",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_live_lifecycle.py::test_stalled_streaming_client_cannot_wedge_the_adapter"
+      ],
+      "notes": "Provided by the A2A SDK's bounded event queue; the bound is not configurable here."
+    },
+    {
+      "id": "adapter.cancel_on_disconnect",
+      "title": "Cancel a task when its streaming client disconnects",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_CANCEL_ON_DISCONNECT",
+      "toggle": {
+        "setting": "cancel_on_disconnect",
+        "on": true,
+        "off": false
+      },
+      "verified_by": [
+        "tests/test_live_lifecycle.py::test_cancel_on_disconnect_cancels_the_task",
+        "script:benchmarks/disconnect_proof.py"
+      ]
+    },
+    {
+      "id": "adapter.reasoning.artifact",
+      "title": "Stream a reasoning model's thinking as a separate artifact",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_REASONING=artifact",
+      "toggle": {
+        "setting": "reasoning",
+        "on": "artifact",
+        "off": "drop"
+      },
+      "verified_by": [
+        "tests/test_reasoning_and_stream_errors.py::test_reasoning_can_be_streamed_as_a_separate_artifact"
+      ]
+    },
+    {
+      "id": "adapter.reasoning.drop",
+      "title": "Drop a reasoning model's thinking (default)",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_REASONING",
+      "active": {
+        "setting": "reasoning",
+        "equals": "drop"
+      },
+      "verified_by": [
+        "tests/test_reasoning_and_stream_errors.py::test_reasoning_is_dropped_by_default",
+        "tests/test_reasoning_and_stream_errors.py::test_all_reasoning_and_no_answer_fails_the_task"
+      ]
+    },
+    {
+      "id": "adapter.otel",
+      "title": "OpenTelemetry traces, metrics and logs",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_OTEL",
+      "toggle": {
+        "setting": "otel_enabled",
+        "on": true,
+        "off": false
+      },
+      "verified_by": [
+        "tests/test_telemetry.py::test_a_request_produces_a_connected_trace",
+        "tests/test_telemetry_setup.py::test_an_unreachable_collector_does_not_slow_or_fail_requests"
+      ]
+    },
+    {
+      "id": "adapter.otel.prometheus",
+      "title": "Prometheus /metrics endpoint",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_OTEL_PROMETHEUS",
+      "toggle": {
+        "setting": "otel_prometheus",
+        "on": true,
+        "off": false
+      },
+      "verified_by": [
+        "tests/test_telemetry_setup.py::test_metrics_endpoint_serves_the_adapter_instruments"
+      ]
+    },
+    {
+      "id": "adapter.otel.capture_content",
+      "title": "Record prompt and response text in telemetry",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_OTEL_CAPTURE=content",
+      "active": {
+        "setting": "otel_capture",
+        "equals": "content"
+      },
+      "verified_by": [
+        "tests/test_telemetry.py::test_content_mode_records_truncated_text_as_events",
+        "tests/test_telemetry.py::test_prompts_never_appear_in_exported_telemetry"
+      ],
+      "notes": "Off by default; the external profile refuses it."
+    },
+    {
+      "id": "adapter.logging.json",
+      "title": "Structured JSON logs with trace ids",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_LOG_FORMAT=json",
+      "active": {
+        "setting": "log_format",
+        "equals": "json"
+      },
+      "verified_by": [
+        "tests/test_telemetry.py::test_log_lines_carry_trace_ids_and_no_prompt_text"
+      ]
+    },
+    {
+      "id": "lemonade.stream.sse",
+      "title": "OpenAI-compatible SSE chat streaming",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_lemonade_client.py::test_stream_yields_only_text_deltas",
+        "script:scripts/real_lemonade_e2e.py"
+      ]
+    },
+    {
+      "id": "lemonade.cancel_by_disconnect",
+      "title": "Closing the connection stops generation",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "script:benchmarks/cancellation_proof.py",
+        "script:benchmarks/disconnect_proof.py"
+      ],
+      "notes": "Measured on real Lemonade: a queued small request is served in ~177 ms after CancelTask."
+    },
+    {
+      "id": "lemonade.in_stream_errors",
+      "title": "Errors reported inside a 200 stream",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_reasoning_and_stream_errors.py::test_an_error_event_inside_a_200_stream_fails_the_task"
+      ],
+      "notes": "Seen when a prompt exceeds the loaded model's context window."
+    },
+    {
+      "id": "lemonade.reasoning_content",
+      "title": "reasoning_content deltas from reasoning models",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_reasoning_and_stream_errors.py::test_client_separates_reasoning_from_the_answer"
+      ]
+    },
+    {
+      "id": "lemonade.health_version",
+      "title": "Server version in /api/v1/health",
+      "state": "observed",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Read by `doctor`; the `lemonade --version` CLI is the fallback."
+    },
+    {
+      "id": "lemonade.context_window",
+      "title": "Model context window sized from available memory",
+      "state": "observed",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Gemma-4-12B on an 8 GB GPU loads with a 1,459-token context; /v1/models reports context_length."
+    },
+    {
+      "id": "lemonade.usage_reporting",
+      "title": "Token usage in the stream",
+      "state": "unknown",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Not present in the streams observed; token metrics are recorded only if it appears."
+    },
+    {
+      "id": "lemonade.prometheus_metrics",
+      "title": "Lemonade's own /metrics endpoint",
+      "state": "observed",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Observed on 2026.40.0 (lemonade_server_up, build info); join with adapter metrics by instance label."
+    },
+    {
+      "id": "sdk.otel_hooks",
+      "title": "The A2A SDK emits OpenTelemetry spans",
+      "state": "observed",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Whenever opentelemetry is installed and a provider is configured; OTEL_INSTRUMENTATION_A2A_SDK_ENABLED=false turns it off."
+    },
+    {
+      "id": "sdk.request_handler_v2",
+      "title": "SDK request handler v2 ignores a custom queue manager",
+      "state": "observed",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Why the event-queue bound is not configurable here."
+    },
+    {
+      "id": "adapter.task_store.sqlite",
+      "title": "Persistent tasks in SQLite (survive restarts, bounded)",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_TASK_STORE=sqlite",
+      "active": {
+        "setting": "task_store",
+        "equals": "sqlite"
+      },
+      "verified_by": [
+        "tests/test_plugins_and_stores.py::test_tasks_survive_a_restart",
+        "tests/test_plugins_and_stores.py::test_a_task_that_was_running_at_shutdown_is_reported_failed",
+        "tests/test_plugins_and_stores.py::test_the_oldest_finished_tasks_are_evicted_and_running_ones_never"
+      ],
+      "notes": "Needs the sqlite extra. A task that was running at shutdown is reported FAILED on first read."
+    },
+    {
+      "id": "adapter.plugins",
+      "title": "Extension API v1: backends, task stores, authenticators, telemetry",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_BACKEND / _TASK_STORE / _AUTHENTICATOR / _TELEMETRY_PLUGIN",
+      "verified_by": [
+        "tests/test_plugins_and_stores.py::test_a_backend_plugin_serves_real_requests",
+        "tests/test_plugins_and_stores.py::test_an_authenticator_plugin_decides_who_is_calling",
+        "tests/test_plugins_and_stores.py::test_a_plugin_built_for_another_api_version_is_refused"
+      ]
+    },
+    {
+      "id": "adapter.compat_modes",
+      "title": "Startup compatibility gate (off, warn, strict)",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_COMPAT",
+      "active": {
+        "setting": "compat",
+        "equals": "strict"
+      },
+      "verified_by": [
+        "tests/test_cli_and_compat.py::test_strict_mode_refuses_to_start_on_a_failed_check",
+        "tests/test_cli_and_compat.py::test_warn_mode_logs_and_starts"
+      ],
+      "notes": "Active here means strict; warn is the default."
+    },
+    {
+      "id": "adapter.capabilities_endpoint",
+      "title": "Authenticated capabilities endpoint and optional Agent Card extension",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_EXPOSE_CAPABILITIES",
+      "toggle": {
+        "setting": "expose_capabilities",
+        "on": true,
+        "off": false
+      },
+      "verified_by": [
+        "tests/test_cli_and_compat.py::test_capabilities_endpoint_describes_the_adapter",
+        "tests/test_cli_and_compat.py::test_card_points_at_it_with_an_optional_extension"
+      ]
+    },
+    {
+      "id": "adapter.config_file",
+      "title": "Layered configuration (defaults, TOML file, environment, command line)",
+      "state": "supported",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_CONFIG",
+      "verified_by": [
+        "tests/test_config_layers.py::test_each_layer_overrides_the_one_below",
+        "tests/test_cli_and_compat.py::test_config_show_reports_sources"
+      ]
+    },
+    {
+      "id": "adapter.doctor",
+      "title": "`lemonade-a2a doctor`: cross-validate versions, features and the backend",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_cli_and_compat.py::test_doctor_json_with_backend_and_adapter",
+        "tests/test_cli_and_compat.py::test_doctor_exit_code_when_lemonade_is_down",
+        "tests/test_cli_and_compat.py::test_sdk_check"
+      ]
+    },
+    {
+      "id": "adapter.support_bundle",
+      "title": "`lemonade-a2a support-bundle`: redacted diagnostics archive",
+      "state": "supported",
+      "since": "0.1.0",
+      "verified_by": [
+        "tests/test_cli_and_compat.py::test_support_bundle_is_redacted"
+      ]
+    },
+    {
+      "id": "lemonade.otlp_telemetry",
+      "title": "Lemonade's own OTLP traces, with an option to trust the incoming trace context",
+      "state": "observed",
+      "since": "0.1.0",
+      "verified_by": [],
+      "notes": "Seen in Lemonade 2026.40.0 defaults (telemetry.trust_incoming_trace_context, default false). The adapter forwards traceparent either way."
+    }
+  ]
+}

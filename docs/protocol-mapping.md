@@ -113,7 +113,7 @@ Future mappings may include:
 | Caller exceeds `LEMONADE_A2A_RATE_LIMIT_PER_MINUTE` | HTTP 429 `RESOURCE_EXHAUSTED` with `Retry-After` (both bindings; this is HTTP-level, before the A2A layer) |
 | Another caller's task id (any operation) | Same as an unknown task: `TASK_NOT_FOUND` / 404 |
 
-Streaming emits one artifact (`lemonade-response`) chunk per Lemonade `content` delta (a reasoning model's `reasoning_content` is not part of the answer and is not forwarded; a response that is all reasoning completes with an empty artifact), then a closing empty chunk with `last_chunk=true`. A client disconnecting from a stream does **not** cancel the task by default: A2A tasks outlive connections and can be resubscribed, so the task runs to completion or its deadline, and `CancelTask` stops it explicitly.
+Streaming emits one artifact (`lemonade-response`) chunk per Lemonade `content` delta (reasoning is handled as described in the table below), then a closing empty chunk with `last_chunk=true`. A client disconnecting from a stream does **not** cancel the task by default: A2A tasks outlive connections and can be resubscribed, so the task runs to completion or its deadline, and `CancelTask` stops it explicitly.
 
 | Situation | Behaviour |
 |---|---|
@@ -123,6 +123,8 @@ Streaming emits one artifact (`lemonade-response`) chunk per Lemonade `content` 
 | Stream fails or hits the deadline after some output | The `lemonade-response` artifact is closed with `last_chunk=true`, then the task becomes `FAILED` (never an artifact left open) |
 | Stream fails before any output | No artifact is created; the task becomes `FAILED` |
 | Backend sends an unparseable or wrongly shaped stream event | `FAILED`, "Lemonade returned an unreadable response." |
+| Backend reports an **error inside a successful stream** (for example a prompt longer than the model's context window: `{"error": {"type": "exceed_context_size_error", ...}}` in an HTTP 200 stream) | `FAILED` with a client-safe message ("The request is longer than the model's context window."); the details (token counts) stay in the server log. Before this was handled such a task completed with an empty answer |
+| A reasoning model streams `reasoning_content` before its answer | The thinking is **not** part of the answer. Default `LEMONADE_A2A_REASONING=drop`: dropped. `artifact`: streamed as a separate `lemonade-reasoning` artifact (metadata `lemonade_a2a.kind: reasoning`), closed before the answer starts. A response that is *all* reasoning and no answer (the output budget ran out) is `FAILED` ("Lemonade returned reasoning but no answer; ...") instead of completing empty |
 | Cancelled mid-stream | The partial artifact is left as streamed (the terminal state is `CANCELED`); it is not closed, because the cancel path publishes the terminal status itself |
 
 ## Errors
@@ -136,3 +138,11 @@ A2A authentication and transport security are deployment concerns and must be ha
 ## Compatibility
 
 The implementation should be validated against the official A2A Inspector/TCK where applicable. Compatibility status must be reported as measured test results, not as a blanket claim.
+
+## Persistence and restarts
+
+With the default `memory` task store, tasks live in the process and are gone at restart. With `LEMONADE_A2A_TASK_STORE=sqlite` they survive: after a restart `GetTask` and `ListTasks` return the stored tasks (still scoped to their owner). A task that was **running** when the process stopped has no executor any more; the first time it is read it is reported `FAILED` with "The adapter restarted while this task was running." and stays failed. Streams are not resumable across a restart.
+
+## Capability switches that change behaviour
+
+`LEMONADE_A2A_FEATURES=-a2a.streaming` makes the Agent Card declare `streaming: false` and the streaming methods answer *unsupported operation* (HTTP 400 `UNSUPPORTED_OPERATION` on HTTP+JSON, JSON-RPC `-32004`); blocking `SendMessage` is unaffected. Card and behaviour always agree.

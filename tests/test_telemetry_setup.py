@@ -91,7 +91,7 @@ def test_none_exporters_still_give_working_instruments(monkeypatch) -> None:
 def test_console_exporter_writes_spans(monkeypatch) -> None:
     import io as _io
 
-    import opentelemetry.sdk.trace.export as export
+    from opentelemetry.sdk.trace import export
 
     sink = _io.StringIO()
 

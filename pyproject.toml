@@ -14,23 +14,46 @@ dependencies = [
   "a2a-sdk[fastapi]>=1.2.0,<1.3",
   "httpx>=0.27,<1",
   "uvicorn>=0.30,<1",
+  "opentelemetry-api>=1.27,<2",
+  "packaging>=23",
 ]
 
 [project.optional-dependencies]
-dev = [
+# OpenTelemetry SDK and exporters (the API alone is a core dependency; telemetry is off by default).
+otel = [
+  "opentelemetry-sdk>=1.27,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.27,<2",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.27,<2",
+  "opentelemetry-exporter-prometheus>=0.48b0",
+  "prometheus-client>=0.20",
+]
+# Persistent tasks: LEMONADE_A2A_TASK_STORE=sqlite
+sqlite = [
+  "sqlalchemy[asyncio]>=2",
+  "aiosqlite>=0.20",
+]
+# What the test suite needs (also what the canary installs against other a2a-sdk versions).
+test = [
+  "lemonade-a2a[otel,sqlite]",
   "pytest>=8",
   "pytest-asyncio>=0.24",
-  "pytest-cov>=5",
   "hypothesis>=6",
   "cryptography>=43",
+  "jsonschema>=4",
+  "pyyaml>=6",
+]
+dev = [
+  "lemonade-a2a[test]",
+  "pytest-cov>=5",
   "ruff>=0.6",
   "bandit>=1.7",
   "pip-audit>=2.7",
   "detect-secrets>=1.5",
+  "build>=1",
 ]
 
 [project.scripts]
-lemonade-a2a = "lemonade_a2a.server:main"
+lemonade-a2a = "lemonade_a2a.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lemonade_a2a"]

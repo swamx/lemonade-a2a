@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "spec_version": "0.1",
+  "generated_at": "2026-10-06T16:36:40+00:00",
+  "adapter": {
+    "version": "0.1.0"
+  },
+  "python": {
+    "tested": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "minimum": "3.11"
+  },
+  "a2a_protocol": {
+    "supported": [
+      "1.0"
+    ]
+  },
+  "a2a_sdk": {
+    "declared": ">=1.2.0,<1.3",
+    "tested": [
+      "1.2.1"
+    ],
+    "known_broken": []
+  },
+  "lemonade": {
+    "tested": [
+      "2026.40.0"
+    ],
+    "minimum": "2026.40.0"
+  },
+  "evidence": {
+    "tck": {
+      "commit": "263b9cfaf16a554bdfb166a7ba5b67716e946349",
+      "status": "passed",
+      "test_cases": {
+        "passed": 157,
+        "skipped": 104,
+        "xfailed": 4
+      },
+      "run_at": "2026-10-05T20:01:01+00:00"
+    }
+  }
+}

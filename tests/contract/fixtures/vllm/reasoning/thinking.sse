@@ -1,0 +1,12 @@
+data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"r1","choices":[{"index":0,"delta":{"role":"assistant","content":""},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"r1","choices":[{"index":0,"delta":{"reasoning_content":"The user wants "},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"r1","choices":[{"index":0,"delta":{"reasoning_content":"one word."},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"r1","choices":[{"index":0,"delta":{"content":"Yes"},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chat-1","object":"chat.completion.chunk","created":1,"model":"r1","choices":[{"index":0,"delta":{"content":""},"logprobs":null,"finish_reason":"stop"}]}
+
+data: [DONE]
+

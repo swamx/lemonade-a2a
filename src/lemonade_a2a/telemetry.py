@@ -51,6 +51,7 @@ class Telemetry:
     runtime: Any = None
     _task_contexts: OrderedDict = field(default_factory=OrderedDict)
     _backend_up: int = 1
+    _compat_status: int = 0
     _store_size: Callable[[], int] | None = None
 
     def __post_init__(self) -> None:
@@ -108,6 +109,11 @@ class Telemetry:
             "lemonade_a2a.backend.up",
             callbacks=[lambda _: [Observation(self._backend_up)]],
             description="1 when the last Lemonade request succeeded, 0 when it failed",
+        )
+        m.create_observable_gauge(
+            "lemonade_a2a.compat.status",
+            callbacks=[lambda _: [Observation(self._compat_status)]],
+            description="Startup compatibility checks: 0 pass, 1 warn, 2 fail",
         )
         m.create_observable_gauge(
             "lemonade_a2a.store.tasks",
@@ -285,6 +291,9 @@ class Telemetry:
                 "gen_ai.token.type": kind,
             },
         )
+
+    def set_compat_status(self, status: int) -> None:
+        self._compat_status = status
 
     def bind_store(self, size: Callable[[], int]) -> None:
         self._store_size = size
