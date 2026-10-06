@@ -122,7 +122,7 @@ The rule is enforced by tests rather than left as intent:
 
 - the Agent Card text never names an accelerator, engine or vendor, and is identical whichever model or backend Lemonade runs (`tests/test_agent_card.py`);
 - any Agent Card extension must be `required: false`, so a client that does not know it still works;
-- the generic design documents (architecture, protocol mapping, security, conformance) use the term **local AI system** and name no hardware vendor; vendor-specific material lives in the [challenge document](amd-challenge.md) and the validation records (`tests/test_repo_hygiene.py`).
+- the generic design documents (architecture, protocol mapping, security, conformance) use the term **local AI system** and name no hardware vendor; vendor-specific material lives only in the validation records (`tests/test_repo_hygiene.py`).
 
 Hardware information that is useful to operators (which llama.cpp backend served a run, memory use) is recorded with the benchmark and validation evidence, not in protocol messages.
 

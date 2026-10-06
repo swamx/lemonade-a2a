@@ -6,6 +6,8 @@ The architectural rule is simple: **A2A owns agent interoperability; Lemonade ow
 
 _Last reviewed: 2026-10-05._ A checked box means the item is implemented **and** verified (test, CI, official suite or recorded measurement); caveats are written next to the item.
 
+**Tiers.** P0 and P1 are complete (their open remainders moved to P2). **P2** is the carry-over from P0/P1 plus two new workstreams: a plug-and-play compatibility specification and OpenTelemetry observability. **P3** is the Lemonade-native proposal and prototype. **P4** is capability expansion.
+
 ## Where we are
 
 | Area | Status |
@@ -18,7 +20,9 @@ _Last reviewed: 2026-10-05._ A checked box means the item is implemented **and**
 | Resource bounds, auth, TLS, shutdown | Implemented (input, deadline, concurrency cap, bounded store, backpressure, named API keys with per-user isolation, rate limiting, TLS and mutual TLS, exposure profiles, opt-in cancel on disconnect) |
 | Fuzzing | Property-based; found and fixed two defects (non-UTF-8 bodies, wrongly shaped backend stream events) |
 | Independent clients (A2A CLI, JS, Go, .NET and Java SDKs, Inspector validators) | Pass on both bindings, mock and real Lemonade; ITK not applicable; see [interoperability.md](interoperability.md) |
-| NPU / ROCm / Metal / non-llama.cpp engines | **Not measured** (no such hardware on the test machine); the only open P1 items |
+| NPU / ROCm / Metal / non-llama.cpp engines | **Not measured** (no such hardware on the test machine); tracked in P2 carry-over |
+| Compatibility specification, `doctor`, feature registry, extension API | **Designed** ([specification.md](specification.md)); not implemented (P2) |
+| OpenTelemetry observability | **Designed** ([observability.md](observability.md)); not implemented; the A2A SDK already emits its own spans (P2) |
 | Native Lemonade integration | Not started (by design, see gates below) |
 
 ## Done
@@ -68,9 +72,9 @@ _Last reviewed: 2026-10-05._ A checked box means the item is implemented **and**
 - [x] Protocol overhead measured independently of generation time (mock backend: ~+10 ms TTFT).
 - [x] Real results on llama.cpp CUDA, Vulkan and CPU with 1.7B and 4B models; 30-run repeats showed single 10-run samples can swing by tens of ms.
 - [x] Concurrent load up to N = 8: Lemonade serializes (flat throughput, linear latency growth), the adapter adds no measurable cost, no failures.
-- [~] Longer prompts/outputs and models larger than 4B: done for 1.7B and 4B on three backends; Gemma-4-12B only partly measured (CUDA short only; long workloads failed in the direct path, CPU cell hung). See [benchmarks.md](benchmarks.md).
-- [~] More runs per cell: done (30 for short cells). More than one machine: only through the `bench.yml` GitHub-runner job, which has not run yet.
-- [~] Overhead budget defined and enforced by `benchmarks/check_budget.py` (see [benchmarks.md](benchmarks.md)). Every 30-run cell on the 1.7B/4B models is within it; Gemma-4-12B on CUDA is **over** (+1.6 s, likely noise on a memory-bound GPU, unconfirmed).
+- [x] Longer prompts/outputs on the 1.7B and 4B models across three backends. Gemma-4-12B is only partly measured (CUDA short only); the remainder moved to **P2 carry-over** (cause diagnosed: reasoning model). See [benchmarks.md](benchmarks.md).
+- [x] More runs per cell (30 for short cells) and a second machine for protocol overhead (the `bench.yml` Linux runner, mock backend: +5.5 ms TTFT). Real inference on a second machine moved to **P2 carry-over**.
+- [x] Overhead budget defined and enforced by `benchmarks/check_budget.py` (see [benchmarks.md](benchmarks.md)). Every 30-run cell on the 1.7B/4B models is within it; Gemma-4-12B on CUDA is **over** (+1.6 s, likely noise, unconfirmed): confirming it moved to **P2 carry-over**.
 
 The objective is not to optimize the Python adapter indefinitely; it is to establish a baseline that tells us whether native Lemonade integration is justified and what it must improve.
 
@@ -108,12 +112,109 @@ A2A must remain independent of the accelerator selected by Lemonade.
 
 - [x] llama.cpp CUDA, Vulkan and CPU, two models, same adapter and behavior (backend verified from the running `llama-server` path).
 - [x] No A2A protocol behavior or Agent Card content depends on AMD-specific metadata (tested).
-- [ ] An NPU path (Ryzen AI / FastFlowLM) and an engine other than llama.cpp (ONNX Runtime/OGA). **Blocked on hardware** this project's test machine lacks; the adapter has no hardware-specific code, so the check is to run the existing validator and benchmark on such a machine.
-- [ ] ROCm and Metal paths where hardware allows. **Blocked on hardware** (same reason).
+- [ ] → **moved to P2 carry-over** (blocked on hardware): an NPU path (Ryzen AI / FastFlowLM) and an engine other than llama.cpp (ONNX Runtime/OGA).
+- [ ] → **moved to P2 carry-over** (blocked on hardware): ROCm and Metal paths.
 - [x] Keep optional hardware metadata informational and extension-based: rule written in [architecture.md](architecture.md) and enforced by tests (no accelerator or vendor term in the Agent Card in any configuration, identical card whatever backend runs, any extension must be optional).
-- [x] Use **local AI system** terminology in generic documentation; AMD-specific language only in [amd-challenge.md](amd-challenge.md) (a test fails if architecture, protocol, security or conformance docs name AMD, Ryzen or ROCm).
+- [x] Use **local AI system** terminology in generic documentation; AMD-specific language only in validation records and benchmarks (a test fails if architecture, protocol, security or conformance docs name AMD, Ryzen or ROCm).
 
-## P2 — Lemonade-native architecture proposal
+## P2 — Carry-over from P0 and P1
+
+Everything P0 and P1 left open, in one place. Nothing here blocks the specification or observability work below, except where noted.
+
+**Evidence**
+
+- [ ] **Gemma-4-12B and other reasoning models.** The harness (and adapter) read `content` only, and the model streams `reasoning_content` first. Make the harness count reasoning chunks or give the model a larger output budget, then re-run the long-prompt and long-output cells and the CPU cell (with a per-cell timeout, since it hung for over two hours).
+- [ ] **Confirm or refute the +1.6 s overhead** seen for 12B on CUDA (inside the 12 s spread of the direct runs), on a quieter machine or with more runs. Until then it stays recorded as over budget.
+- [ ] **Real inference on a second machine.** The Linux runner measures protocol overhead against the mock only. Run `validate_real_lemonade.py` and the benchmarks on another PC (or a self-hosted runner with a small CPU model).
+- [ ] **Decide how the adapter treats `reasoning_content`.** Today it is dropped, and a response that is all reasoning completes with an empty artifact. Options: keep as is and document, fail the task with a clear message, or forward reasoning as an opt-in non-answer part.
+
+**Hardware (blocked: this test machine has an Intel CPU and an NVIDIA GPU)**
+
+- [ ] NPU path (Ryzen AI / FastFlowLM) and an engine other than llama.cpp (ONNX Runtime/OGA). The adapter has no hardware-specific code, so the check is to run the existing validator, live tests and benchmark on such a machine.
+- [ ] ROCm and Metal paths.
+
+**Deferred decisions, each with its revisit trigger**
+
+- [ ] Configurable event-queue bound: needs an upstream change in the A2A SDK (its v2 handler ignores a custom queue manager). Revisit when the SDK exposes it, and file the request.
+- [ ] Read the OAuth/OIDC token subject inside the adapter: revisit if a deployment needs per-user task ownership behind a shared gateway. The gateway pattern is documented.
+- [ ] ITK: not applicable to a standalone adapter; revisit if an adapter-facing mode appears.
+- [ ] Re-test the A2A CLI with card discovery once a CLI release bundles a2a-go v2.6.0 or later.
+- [ ] Remove the TCK messageId workaround and the two expected deviations when [a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248) is fixed (the patch will stop applying, which is the signal).
+- [ ] Re-evaluate the optional capabilities left undeclared (gRPC, push notifications, extended Agent Card) against [conformance.md](conformance.md); push notifications additionally need the URL policy wired in.
+
+**Exit criterion:** every item is either done with evidence or explicitly closed with a reason; the hardware items may remain open only as "blocked on hardware".
+
+## P2 — Plug-and-play compatibility specification (new)
+
+Design: [specification.md](specification.md). The goal is that after `pip install -U a2a-sdk lemonade-a2a` a single command cross-validates support and features, with control over how strictly the adapter reacts, flexibility to swap parts, and a support bundle that answers a bug report.
+
+**Specification and data**
+
+- [ ] Review and accept the draft specification (open questions in §11 resolved or deferred).
+- [ ] Feature registry (`features.json` plus JSON Schema) seeded from the current state, with `verified_by` evidence for every `supported` entry.
+- [ ] `@pytest.mark.feature("<id>")` marker and a CI check that the registry and the tests agree (no `supported` feature without a passing test, no unknown ids).
+- [ ] Compatibility manifest (`compat.json`) generated from CI results at release time, never hand-edited.
+
+**Tooling**
+
+- [ ] `lemonade-a2a doctor`: component versions against the manifest, config consistency, card versus registry, backend probe; verdicts and exit codes `0/1/2/3`; `--json`, `--strict`.
+- [ ] `lemonade-a2a capabilities`: the registry resolved for this install and configuration.
+- [ ] `lemonade-a2a doctor --sdk-gap`: what the installed `a2a-sdk` offers that the adapter does not use.
+- [ ] `lemonade-a2a config show | validate | schema` with secrets redacted and the source of each value.
+- [ ] `lemonade-a2a support-bundle`: redacted archive (versions, effective config, doctor output, logs, platform and Lemonade info), tested for the absence of prompts, responses and keys; issue template asks for it.
+- [ ] Optional `GET /.well-known/lemonade-a2a/capabilities` (authenticated, off by default) and an optional, never-required Agent Card extension pointing to it.
+
+**Control and flexibility**
+
+- [ ] `LEMONADE_A2A_COMPAT=off|warn|strict` evaluated at startup with the same checks as `doctor`.
+- [ ] Feature flags by registry id for opt-in and experimental features; turning a core feature off changes both the Agent Card and the behaviour, checked by `doctor`.
+- [ ] Layered configuration (defaults, config file, environment, flags); every existing environment variable keeps working.
+- [ ] Extension API v1 through entry points: `lemonade_a2a.backends`, `task_stores`, `authenticators`, `telemetry`, each a small `Protocol` with an `api_version`; `doctor` lists plugins and flags mismatches.
+- [ ] A reference second implementation per seam to prove the API is usable: a persistent (SQLite) task store, and a second OpenAI-compatible backend in the contract tests.
+
+**Upgrade safety**
+
+- [ ] Canary CI matrix: lowest supported, latest stable and latest pre-release `a2a-sdk`, running unit tests, the TCK (official and patched) and `doctor`; failure on *latest* opens an issue, failure on *lowest* blocks merges.
+- [ ] Backend contract tests (`tests/contract/`): recorded request and stream fixtures per Lemonade version; a new Lemonade release is added by recording fixtures.
+- [ ] Widen or confirm the `a2a-sdk` range (currently `>=1.2.0,<1.3`) based on the canary instead of by guess.
+- [ ] Version and deprecation policy written down (semantic versioning, deprecation period for settings and the extension API).
+- [ ] Packaging: wheel and sdist build in CI, optional extras (`[otel]`, `[dev]`), and a release process. **Publishing to PyPI needs the owner's explicit approval and is not part of this item.**
+
+**Exit criterion:** on a clean environment, `pip install -U a2a-sdk lemonade-a2a` followed by `lemonade-a2a doctor` gives a correct verdict in under five seconds for a supported combination, a clear failure for a known-broken one, and the canary matrix has run green at least once on all three SDK variants.
+
+## P2 — Observability with OpenTelemetry (new)
+
+Design: [observability.md](observability.md). Opt-in, free when off, private by default, never able to hurt a request.
+
+**Foundation**
+
+- [ ] Review and accept the draft (semantic-convention version to pin, open questions in §9).
+- [ ] `lemonade_a2a.telemetry` facade over `opentelemetry-api` (no-op when off); `[otel]` extra for the SDK and OTLP exporters; declare the API dependency explicitly.
+- [ ] Configuration: standard `OTEL_*` variables plus `LEMONADE_A2A_OTEL`, `_CAPTURE`, `_REDACT`, `_PROMETHEUS`, `_BUFFER`; validated by `config validate`; reported by `doctor`.
+
+**Signals**
+
+- [ ] Traces: request span, `a2a.task.execute` (with first-chunk, cancel, disconnect, deadline and stall events), `lemonade.chat.stream` client span; span links for later requests about a task; W3C trace-context in and out (to Lemonade); sanitized error recording.
+- [ ] Metrics: the instrument table in [observability.md](observability.md), low cardinality only; GenAI conventions behind the pinned version.
+- [ ] Logs: structured JSON with trace and span ids, stable event names, optional OpenTelemetry log bridge.
+- [ ] Optional Prometheus pull endpoint (authenticated).
+
+**Privacy, safety, performance**
+
+- [ ] Capture modes `none` (default) / `metadata` / `content`; the `external` profile refuses `content` and plaintext OTLP without explicit acceptance.
+- [ ] Property test: random prompts never appear in any exported span, metric or log in `none` and `metadata` modes.
+- [ ] Resilience tests: collector down or slow and exporter errors never fail or slow requests; bounded buffers; shutdown flush is bounded.
+- [ ] Benchmark modes (off, 100%, 10% sampling) and a telemetry overhead budget in `check_budget.py`, confirmed by measurement before it becomes a gate.
+
+**Operations**
+
+- [ ] `examples/observability/`: Docker Compose stack (Collector, trace backend, Prometheus, Grafana), Grafana dashboard and example alert rules.
+- [ ] Documentation: configuration reference, sampling and retention guidance, privacy modes.
+- [ ] Canary against the latest OpenTelemetry release in the compatibility matrix.
+
+**Exit criterion:** with `[otel]` installed and an exporter configured, one request produces a connected trace from the client through the adapter to Lemonade, the dashboards show the documented metrics, the no-content-leak and resilience tests pass, and the measured overhead is inside the budget.
+
+## P3 — Lemonade-native architecture proposal
 
 The desired end state is not a permanent second inference server. A2A should become another protocol surface feeding Lemonade's existing router/model/backend architecture.
 
@@ -138,7 +239,7 @@ A2A clients                 Existing API clients
              CPU / GPU / NPU
 ```
 
-The conformance, interoperability and real-runtime gates are now met; the remaining prerequisite is AMD-hardware (NPU/ROCm) evidence.
+The conformance, interoperability, real-runtime and hardening gates are met; the remaining prerequisites are the P2 carry-over (hardware evidence) and the P2 specification, which gives the native design a feature registry, a contract-test suite and telemetry instruments to match.
 
 - [ ] Map A2A endpoints onto the current Lemonade C++ HTTP layer.
 - [ ] Identify the smallest reusable A2A core independent of Python SDK internals.
@@ -148,9 +249,10 @@ The conformance, interoperability and real-runtime gates are now met; the remain
 - [ ] Define cancellation from A2A task → Lemonade request/backend execution (the Python reference now proves the behavior to match).
 - [ ] Decide whether A2A shares Lemonade's primary port or uses a configurable listener (the sidecar already had to avoid Lemonade's WebSocket port 9000).
 - [ ] Align CLI/configuration naming with Lemonade maintainers rather than assuming `--a2a`.
+- [ ] Reuse the P2 specification: the native implementation claims features by registry id and must pass the same contract tests and emit the same telemetry instruments.
 - [ ] Write an upstream design proposal before a large native implementation.
 
-## P2 — Native prototype
+## P3 — Native prototype
 
 Only start this after the proposal is accepted in principle.
 
@@ -158,20 +260,20 @@ Only start this after the proposal is accepted in principle.
 - [ ] Prototype native SendMessage → Lemonade Router execution.
 - [ ] Add native streaming.
 - [ ] Add native cancellation/task lifecycle.
-- [ ] Run the same black-box and TCK suites against Python and native implementations.
+- [ ] Run the same black-box, contract and TCK suites against Python and native implementations.
 - [ ] Compare correctness, TTFT, throughput, RSS and CPU overhead against the recorded baselines.
 - [ ] Prepare an upstreamable patch series if maintainers accept the design.
 
-## P3 — Capability expansion
+## P4 — Capability expansion
 
 These features are useful only after the core protocol surface is stable:
 
 - [ ] Multi-model Agent Cards and skills based on Lemonade capabilities.
-- [ ] Rich A2A parts for supported multimodal Lemonade endpoints.
+- [ ] Rich A2A parts for supported multimodal Lemonade endpoints (gated by the URL policy in `safe_urls.py`).
 - [ ] A2A ↔ existing Lemonade API interoperability examples.
 - [ ] Capability-aware delegation across multiple local Lemonade nodes.
 - [ ] Privacy/locality policy for local and LAN agents.
-- [ ] Optional hardware/capability metadata extensions.
+- [ ] Optional hardware/capability metadata extensions (optional, namespaced, never required; see [architecture.md](architecture.md)).
 - [ ] Quality/latency/energy benchmarking where hardware metrics are available.
 
 ## Explicitly out of scope
@@ -179,6 +281,7 @@ These features are useful only after the core protocol surface is stable:
 - [x] Remove CLM/LAYA/JEV or other "System One" model requirements from the architecture.
 - [x] Do not build a second model-routing/reasoning framework inside the A2A adapter.
 - [x] Do not make AMD hardware a protocol requirement.
+- [x] No telemetry sent to the project: diagnostics, `doctor` and the support bundle are local, and exporting OpenTelemetry data is the operator's choice, off by default.
 
 If Lemonade gains advanced model routing, scheduling or reasoning features, the A2A surface should reuse them through Lemonade's router instead of duplicating them.
 
@@ -189,7 +292,12 @@ If Lemonade gains advanced model routing, scheduling or reasoning features, the 
 3. ~~Official A2A TCK~~ — done for the protocol surface; the two SHOULD deviations are a TCK test artifact, reported upstream (#248) and covered by a workaround run.
 4. ~~Independent-client interoperability~~ — done for the CLI and the JS, Go, .NET and Java SDKs plus the Inspector validators.
 5. ~~Remaining hardening~~ — done: backpressure, per-user isolation, rate limiting, mTLS, profiles, fuzzing.
-6. **AMD hardware evidence** ← next — NPU/ROCm/Metal and a non-llama.cpp engine, which needs access to such a machine.
-7. **Upstream design proposal**, then a **native prototype** of the smallest accepted vertical slice.
+6. **P2, in this order**, because each step makes the next safer:
+   1. *Specification, feature registry and `doctor`*, since observability and plugins should register against it.
+   2. *OpenTelemetry*, with the privacy and resilience tests first.
+   3. *Canary matrix, contract tests and extension API.*
+   4. *Carry-over evidence*: reasoning-model handling, the 12B re-run, a second machine; the hardware items whenever such a machine is available.
+7. **P3: upstream design proposal**, then a **native prototype** of the smallest accepted vertical slice, reusing the specification, contract tests and telemetry instruments.
+8. **P4: capability expansion.**
 
 This ordering keeps the repository evidence-driven and maximizes the chance that the work can be adopted upstream.
