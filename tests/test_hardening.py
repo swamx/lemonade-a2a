@@ -88,10 +88,20 @@ def test_max_request_bytes_must_be_positive() -> None:
         Settings(max_request_bytes=0)
 
 
-def test_main_passes_tls_and_warns_when_exposed(monkeypatch, caplog) -> None:
+def test_main_refuses_to_expose_the_default_profile(monkeypatch) -> None:
+    monkeypatch.setenv("LEMONADE_A2A_HOST", "0.0.0.0")
+    monkeypatch.delenv("LEMONADE_A2A_PROFILE", raising=False)
+    monkeypatch.setattr("uvicorn.run", lambda app, **kwargs: pytest.fail("must not start"))
+
+    with pytest.raises(ValueError, match="loopback"):
+        server.main()
+
+
+def test_main_warns_about_a_lan_profile_without_tls_or_rate_limit(monkeypatch, caplog) -> None:
     captured = {}
     monkeypatch.setenv("LEMONADE_A2A_HOST", "0.0.0.0")
-    monkeypatch.delenv("LEMONADE_A2A_API_KEY", raising=False)
+    monkeypatch.setenv("LEMONADE_A2A_PROFILE", "lan")
+    monkeypatch.setenv("LEMONADE_A2A_API_KEY", "k")
     monkeypatch.delenv("LEMONADE_A2A_SSL_CERTFILE", raising=False)
     monkeypatch.delenv("LEMONADE_A2A_SSL_KEYFILE", raising=False)
     monkeypatch.setattr("uvicorn.run", lambda app, **kwargs: captured.update(kwargs))
@@ -101,8 +111,8 @@ def test_main_passes_tls_and_warns_when_exposed(monkeypatch, caplog) -> None:
 
     assert captured["host"] == "0.0.0.0"
     assert captured["ssl_certfile"] is None
-    assert "without LEMONADE_A2A_API_KEY" in caplog.text
     assert "without TLS" in caplog.text
+    assert "RATE_LIMIT" in caplog.text
 
 
 def test_main_is_quiet_on_loopback(monkeypatch, caplog) -> None:
@@ -160,3 +170,26 @@ async def test_non_streaming_chat_returns_message_content(monkeypatch) -> None:
 
     assert await client.chat([{"role": "user", "content": "hi"}]) == "hi there"
     await client.aclose()
+
+
+def test_non_utf8_bodies_are_a_parse_error_not_an_internal_error() -> None:
+    client = _client()
+    bad = b"\x80\xfe\xff not utf-8"
+
+    rest = client.post("/message:send", headers=HEADERS, content=bad)
+    rpc = client.post("/", headers=HEADERS, content=bad)
+
+    assert rest.status_code == 400
+    assert rest.json()["error"]["status"] == "INVALID_ARGUMENT"
+    assert rpc.json()["error"]["code"] == -32700
+
+
+def test_odd_stream_events_from_the_backend_are_value_errors() -> None:
+    from lemonade_a2a.lemonade_client import StreamFormatError, _delta_text
+
+    assert _delta_text({"choices": [{"delta": {"content": "hi"}}]}) == "hi"
+    assert _delta_text({"choices": []}) == ""
+    assert _delta_text({"choices": [{"delta": {"content": 5}}]}) == ""
+    for event in (None, [], {"choices": "x"}, {"choices": [1]}, {"choices": [{"delta": 3}]}):
+        with pytest.raises(StreamFormatError):
+            _delta_text(event)

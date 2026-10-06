@@ -40,6 +40,8 @@ CI runs exactly these (Python 3.11-3.13), plus a mock-Lemonade black-box job.
 | Layer | Command | Needs |
 |---|---|---|
 | Unit / in-process | `pytest` | nothing |
+| Live lifecycle (real sockets: stalled client, disconnect, cancel races) | `pytest tests/test_live_lifecycle.py` (part of plain `pytest`, about 15 s) | nothing, starts its own mock and adapter |
+| Fuzzing | `pytest tests/test_fuzz.py` (hypothesis; raise `max_examples` locally to dig deeper) | nothing |
 | Black-box vs mock Lemonade | `python scripts/blackbox_e2e.py` | mock (`tests/mock_lemonade.py`) and adapter running |
 | Smoke conformance | `python scripts/check_a2a_conformance.py` | adapter running |
 | Independent clients | `node interop/js_client.mjs`, `python interop/inspector_validate.py --inspector <clone>` | adapter running, see [docs/interoperability.md](docs/interoperability.md) |

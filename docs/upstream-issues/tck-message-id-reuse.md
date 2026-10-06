@@ -1,7 +1,6 @@
-# Draft upstream issue: TCK reuses one `messageId` for several messages (CORE-HIST-005/006)
+# Upstream issue: TCK reuses one `messageId` for several messages (CORE-HIST-005/006)
 
-**Not filed.** Draft for the repository owner to review and, if they agree, post at
-https://github.com/a2aproject/a2a-tck/issues. Found while running the TCK at commit
+**Filed 2026-10-05 as https://github.com/a2aproject/a2a-tck/issues/248.** Found while running the TCK at commit
 `263b9cfaf16a554bdfb166a7ba5b67716e946349` against Lemonade A2A (see `docs/conformance.md`).
 
 ---

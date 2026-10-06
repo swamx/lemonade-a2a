@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 
@@ -20,3 +21,14 @@ def test_tracked_text_files_have_no_stray_control_characters() -> None:
         if any((ord(c) < 32 and c not in "\n\r\t") or c == REPLACEMENT_CHAR for c in text):
             bad.append(name)
     assert not bad, f"control/replacement characters found in: {bad}"
+
+
+def test_generic_docs_stay_vendor_neutral() -> None:
+    """Architecture, protocol and security docs say "local AI system" and name no hardware
+    vendor; vendor-specific material belongs in the challenge and validation documents."""
+    root = Path(__file__).resolve().parent.parent
+    for name in ("architecture.md", "protocol-mapping.md", "security.md", "conformance.md"):
+        text = (root / "docs" / name).read_text(encoding="utf-8").lower()
+        text = re.sub(r"\]\([^)]*\)", "]", text)  # link targets may name the challenge doc
+        found = [term for term in ("amd", "ryzen", "rocm") if re.search(rf"\b{term}\b", text)]
+        assert not found, (name, found)

@@ -52,14 +52,17 @@ A deliberately small client targeting Lemonade's OpenAI-compatible API. It suppo
 
 ### Streaming bridge
 
-Maps Lemonade SSE deltas into A2A streaming events while preserving ordering and cancellation. Backpressure and disconnect propagation are requirements, not optional optimizations.
+Maps Lemonade SSE deltas into A2A streaming events while preserving ordering and cancellation. Backpressure comes from the A2A SDK's bounded event queue: when a consumer stops reading, the producer blocks and stops pulling tokens from Lemonade, and the per-task deadline ends the task. A stream that fails part-way closes its artifact before the task becomes `FAILED`. Disconnect propagation is a policy choice: by default a client leaving does not cancel its task, and `LEMONADE_A2A_CANCEL_ON_DISCONNECT=1` cancels the task started by a streaming request when that request's client goes away.
 
 ## Module map
 
 | Module | Responsibility |
 |---|---|
-| `config.py` | `Settings` loaded from environment, validated at construction |
-| `server.py` | FastAPI app, Agent Card, A2A routes (base URL plus legacy `/a2a/*` paths), HTTP+JSON response normalization |
+| `config.py` | `Settings` loaded from environment, validated at construction, including the exposure-profile rules |
+| `server.py` | FastAPI app, Agent Card, A2A routes (base URL plus legacy `/a2a/*` paths), middleware wiring, listener options (TLS / mutual TLS), startup warnings |
+| `middleware.py` | Authentication (named API keys → user), rate limiting, body-size limit, UTF-8 and content-type checks, client-disconnect signal, security headers |
+| `call_context.py` | Builds the A2A call context: the authenticated user (task owner) and the disconnect event |
+| `safe_urls.py` | Tested SSRF policy that must gate any future URL fetch or push-notification callback; unused while those features are off |
 | `executor.py` | A2A `AgentExecutor`: input validation, Task/Artifact events, cancellation, backend-error to `FAILED` mapping |
 | `lemonade_client.py` | Pooled OpenAI-compatible client (`chat`, SSE `stream`); no A2A types |
 | `task_store.py` | `BoundedTaskStore`: in-memory store evicting the oldest finished tasks |
@@ -114,6 +117,14 @@ The sidecar should therefore avoid assumptions that would prevent its adapters f
 ## Capability model
 
 A2A skills describe agent capabilities, not hardware topology. CPU/GPU/NPU information should therefore be exposed only through optional namespaced extensions or operational endpoints, never by changing core A2A semantics.
+
+The rule is enforced by tests rather than left as intent:
+
+- the Agent Card text never names an accelerator, engine or vendor, and is identical whichever model or backend Lemonade runs (`tests/test_agent_card.py`);
+- any Agent Card extension must be `required: false`, so a client that does not know it still works;
+- the generic design documents (architecture, protocol mapping, security, conformance) use the term **local AI system** and name no hardware vendor; vendor-specific material lives in the [challenge document](amd-challenge.md) and the validation records (`tests/test_repo_hygiene.py`).
+
+Hardware information that is useful to operators (which llama.cpp backend served a run, memory use) is recorded with the benchmark and validation evidence, not in protocol messages.
 
 Potential future skills include text reasoning, coding, vision, speech, embeddings, or image generation when the underlying Lemonade configuration can actually provide them.
 

@@ -7,6 +7,25 @@ from typing import Any
 import httpx
 
 
+class StreamFormatError(ValueError):
+    """Lemonade sent a stream event that is not the OpenAI chunk shape."""
+
+
+def _delta_text(event: object) -> str:
+    """Text of one OpenAI-style stream event; an event of the wrong shape is a ``ValueError``."""
+    if not isinstance(event, dict):
+        raise StreamFormatError("unexpected stream event")
+    choices = event.get("choices") or []
+    if not isinstance(choices, list):
+        raise StreamFormatError("unexpected stream choices")
+    if not choices:
+        return ""
+    if not isinstance(choices[0], dict) or not isinstance(choices[0].get("delta") or {}, dict):
+        raise StreamFormatError("unexpected stream choice")
+    text = (choices[0].get("delta") or {}).get("content")
+    return text if isinstance(text, str) else ""
+
+
 class LemonadeClient:
     """Minimal client for Lemonade's OpenAI-compatible chat surface."""
 
@@ -60,11 +79,6 @@ class LemonadeClient:
                 raw = line[5:].strip()
                 if not raw or raw == "[DONE]":
                     continue
-                event = json.loads(raw)
-                choices = event.get("choices") or []
-                if not choices:
-                    continue
-                delta = choices[0].get("delta") or {}
-                text = delta.get("content")
-                if isinstance(text, str) and text:
+                text = _delta_text(json.loads(raw))
+                if text:
                     yield text

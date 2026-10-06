@@ -39,7 +39,16 @@ This suite is intentionally small and is not presented as protocol certification
 > | Push notifications | Not supported (`pushNotifications: false`) | The server would call back URLs supplied by the client, which is an SSRF risk until the security profiles in the roadmap define an allowlist and private-network rules. |
 > | Extended Agent Card | Not declared | There is no authenticated-only information to expose; the public card is complete. Revisit with per-user identity. |
 >
-> **Known deviations (SHOULD, expected-fail):** `CORE-HIST-005` and `CORE-HIST-006` (multi-turn history ordering/content) on both transports. **Root cause (2026-10-04): a TCK test artifact, not an adapter defect.** The TCK helper builds every `messageId` as `tck-<name>-<session>`, so the initial message and both follow-ups of its multi-turn task share one `messageId` (`tck-input-required-<session>`). The a2a-sdk treats a repeated `messageId` as a duplicate and does not append it to task history; replaying the same conversation with unique ids records all four messages in order on both transports. The TCK reports `['TCK prerequisite task creation', 'TCK complete after history']` because the two follow-ups were deduplicated. Left as expected-fail because the adapter cannot satisfy a test that violates message-id uniqueness; not yet reported upstream.
+> **Known deviations (SHOULD, expected-fail):** `CORE-HIST-005` and `CORE-HIST-006` (multi-turn history ordering/content) on both transports. **Root cause (2026-10-04): a TCK test artifact, not an adapter defect.** The TCK helper builds every `messageId` as `tck-<name>-<session>`, so the initial message and both follow-ups of its multi-turn task share one `messageId` (`tck-input-required-<session>`). The a2a-sdk treats a repeated `messageId` as a duplicate and does not append it to task history; replaying the same conversation with unique ids records all four messages in order on both transports. The TCK reports `['TCK prerequisite task creation', 'TCK complete after history']` because the two follow-ups were deduplicated. Reported upstream as [a2aproject/a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248).
+>
+> **Workaround while #248 is open.** `tck/patches/unique-message-ids.patch` gives each follow-up its own `messageId` (a two-line change to the TCK's `_task_helpers.py`); `python scripts/run_tck.py --tck-dir <a2a-tck> --patch tck/patches/unique-message-ids.patch` applies it for one run and reverts it afterwards. Two runs are recorded and both are enforced in CI (`tck.yml`):
+>
+> | Run | Result | File |
+> |---|---|---|
+> | Official, unpatched | 157 passed, 0 failed, 4 expected-fail (`CORE-HIST-005/006` on both transports). Fails on **any other** deviation | [conformance-results.json](conformance-results.json) |
+> | With the messageId patch | **161 passed, 0 failed, 0 deviations** | [conformance-results-patched.json](conformance-results-patched.json) |
+>
+> The patched run is the proof that the adapter's history handling is correct; the unpatched run stays the official number, because a patched TCK is not the TCK. When the patch no longer applies, the TCK has changed: re-check #248, then refresh or delete the patch and the expected deviations in `scripts/run_tck.py`.
 >
 > **Run it:** `python scripts/run_tck.py --tck-dir <a2a-tck clone with its own venv>` (see the script docstring). Not run: ITK / cross-SDK interoperability.
 
