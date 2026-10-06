@@ -12,3 +12,9 @@ interop/java/target/
 interop/dotnet/bin/
 interop/dotnet/obj/
 reports/
+
+# Local-only notes (challenge pitches, drafts) - keep out of the repo
+amd-challenge*.md
+*-challenge*.md
+*-pitch*.md
+local-notes/

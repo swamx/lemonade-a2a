@@ -246,7 +246,6 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 - [Benchmarks](docs/benchmarks.md)
 - [Roadmap / TODO](docs/roadmap.md)
 - [Upstream integration](docs/upstream-integration.md)
-- [AMD Lemonade Challenge](docs/amd-challenge.md)
 
 ## Status
 
