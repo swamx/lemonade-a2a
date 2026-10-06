@@ -8,6 +8,8 @@ from a2a.server.tasks.task_store import TaskStore
 from a2a.types import TaskState
 from a2a.types.a2a_pb2 import ListTasksRequest, ListTasksResponse, Task
 
+from .telemetry import NOOP, Telemetry
+
 TERMINAL_STATES = frozenset(
     {
         TaskState.TASK_STATE_COMPLETED,
@@ -25,10 +27,14 @@ class BoundedTaskStore(TaskStore):
     by the executor's concurrency limit, and dropping them would lose live state.
     """
 
-    def __init__(self, max_tasks: int, inner: TaskStore | None = None) -> None:
+    def __init__(
+        self, max_tasks: int, inner: TaskStore | None = None, telemetry: Telemetry = NOOP
+    ) -> None:
         if max_tasks < 1:
             raise ValueError("max_tasks must be positive")
         self.max_tasks = max_tasks
+        self.telemetry = telemetry
+        telemetry.bind_store(lambda: len(self._known))
         self._inner = inner or InMemoryTaskStore()
         # task id -> (call context used to save it, is terminal); oldest first.
         self._known: OrderedDict[str, tuple[ServerCallContext, bool]] = OrderedDict()
@@ -61,3 +67,4 @@ class BoundedTaskStore(TaskStore):
                 return
             context, _ = self._known.pop(victim)
             await self._inner.delete(victim, context)
+            self.telemetry.eviction()

@@ -67,10 +67,10 @@ def summarize(values: list[float]) -> dict:
     }
 
 
-def timing(start: float, first: float | None, chunks: int) -> dict:
+def timing(start: float, first: float | None, chunks: int, why: str = "") -> dict:
     end = time.perf_counter()
     if first is None:
-        raise RuntimeError("stream produced no text chunks")
+        raise RuntimeError(f"stream produced no text chunks{(' (' + why + ')') if why else ''}")
     return {
         "ttft_ms": (first - start) * 1000,
         "total_ms": (end - start) * 1000,
@@ -87,15 +87,22 @@ async def direct_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> 
     }
     start = time.perf_counter()
     first = None
-    chunks = 0
+    chunks = reasoning = events = 0
+    finish = error = None
     async with client.stream("POST", args.direct_url, json=payload) as response:
         response.raise_for_status()
         async for event in sse_data(response):
-            delta = (event.get("choices") or [{}])[0].get("delta") or {}
+            events += 1
+            error = event.get("error") or error
+            choice = (event.get("choices") or [{}])[0]
+            finish = choice.get("finish_reason") or finish
+            delta = choice.get("delta") or {}
+            reasoning += bool(delta.get("reasoning_content"))
             if delta.get("content"):
                 chunks += 1
                 first = first or time.perf_counter()
-    return timing(start, first, chunks)
+    why = f"events={events}, reasoning_chunks={reasoning}, finish_reason={finish}, error={error}"
+    return timing(start, first, chunks, why)
 
 
 async def a2a_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> dict:

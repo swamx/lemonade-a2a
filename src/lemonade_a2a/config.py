@@ -9,6 +9,8 @@ DEFAULT_PORT = 9100
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 PROFILES = ("local", "lan", "external")
+CAPTURE_MODES = ("none", "metadata", "content")
+LOG_FORMATS = ("text", "json")
 
 
 def parse_api_keys(spec: str) -> dict[str, str]:
@@ -52,6 +54,7 @@ class Settings:
     max_concurrent_tasks: int = 8
     max_stored_tasks: int = 1000
     cancel_on_disconnect: bool = False
+    reasoning: str = "drop"  # drop | artifact: what to do with a reasoning model's thinking
     rate_limit_per_minute: int = 0  # per identity; 0 turns rate limiting off
 
     # Security. Secrets are excluded from repr so they never reach logs.
@@ -62,6 +65,17 @@ class Settings:
     ssl_keyfile: str = ""
     ssl_ca_certs: str = ""
     ssl_require_client_cert: bool = False
+
+    # Observability (docs/observability.md). Off by default; OTEL_* variables configure
+    # exporters, sampling and resource attributes.
+    otel_enabled: bool = False
+    otel_capture: str = "none"  # none | metadata | content
+    otel_content_max_chars: int = 1024
+    otel_redact: str = ""  # comma-separated attribute keys or patterns to drop
+    otel_prometheus: bool = False  # serve /metrics (authenticated like other routes)
+    otel_buffer: int = 2048  # queued spans/logs before dropping
+    otel_allow_plaintext: bool = False  # allow a non-TLS remote OTLP endpoint under `external`
+    log_format: str = "text"  # text | json (json carries trace_id/span_id)
 
     @property
     def credentials(self) -> dict[str, str]:
@@ -86,6 +100,8 @@ class Settings:
             "LEMONADE_A2A_MAX_TASK_SECONDS": self.max_task_seconds,
             "LEMONADE_A2A_MAX_CONCURRENT_TASKS": self.max_concurrent_tasks,
             "LEMONADE_A2A_MAX_STORED_TASKS": self.max_stored_tasks,
+            "LEMONADE_A2A_OTEL_BUFFER": self.otel_buffer,
+            "LEMONADE_A2A_OTEL_CONTENT_MAX_CHARS": self.otel_content_max_chars,
         }
         for name, value in positive.items():
             if value <= 0:
@@ -99,6 +115,12 @@ class Settings:
                 "LEMONADE_A2A_SSL_REQUIRE_CLIENT_CERT needs the server certificate and "
                 "LEMONADE_A2A_SSL_CA_CERTS (the CA that signs client certificates)"
             )
+        if self.otel_capture not in CAPTURE_MODES:
+            raise ValueError(f"LEMONADE_A2A_OTEL_CAPTURE must be one of {', '.join(CAPTURE_MODES)}")
+        if self.reasoning not in ("drop", "artifact"):
+            raise ValueError("LEMONADE_A2A_REASONING must be drop or artifact")
+        if self.log_format not in LOG_FORMATS:
+            raise ValueError(f"LEMONADE_A2A_LOG_FORMAT must be one of {', '.join(LOG_FORMATS)}")
         self._check_profile()
 
     def _check_profile(self) -> None:
@@ -125,6 +147,27 @@ class Settings:
                 raise ValueError(
                     "profile 'external' needs rate limiting: set LEMONADE_A2A_RATE_LIMIT_PER_MINUTE"
                 )
+            self._check_external_telemetry()
+
+    def _check_external_telemetry(self) -> None:
+        if not self.otel_enabled:
+            return
+        if self.otel_capture == "content":
+            raise ValueError(
+                "profile 'external' refuses LEMONADE_A2A_OTEL_CAPTURE=content "
+                "(prompts and responses would leave the host)"
+            )
+        endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+        host = endpoint.split("://", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0].strip("[]")
+        if (
+            endpoint.startswith("http://")
+            and host not in LOOPBACK_HOSTS
+            and not self.otel_allow_plaintext
+        ):
+            raise ValueError(
+                "profile 'external' needs a TLS OTLP endpoint (https://...); "
+                "set LEMONADE_A2A_OTEL_ALLOW_PLAINTEXT=1 to accept plaintext"
+            )
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -162,6 +205,7 @@ class Settings:
             cancel_on_disconnect=flag(
                 "LEMONADE_A2A_CANCEL_ON_DISCONNECT", defaults.cancel_on_disconnect
             ),
+            reasoning=env("LEMONADE_A2A_REASONING", defaults.reasoning).strip().lower(),
             rate_limit_per_minute=number(
                 "LEMONADE_A2A_RATE_LIMIT_PER_MINUTE", defaults.rate_limit_per_minute
             ),
@@ -174,4 +218,16 @@ class Settings:
             ssl_require_client_cert=flag(
                 "LEMONADE_A2A_SSL_REQUIRE_CLIENT_CERT", defaults.ssl_require_client_cert
             ),
+            otel_enabled=flag("LEMONADE_A2A_OTEL", defaults.otel_enabled),
+            otel_capture=env("LEMONADE_A2A_OTEL_CAPTURE", defaults.otel_capture).strip().lower(),
+            otel_content_max_chars=number(
+                "LEMONADE_A2A_OTEL_CONTENT_MAX_CHARS", defaults.otel_content_max_chars
+            ),
+            otel_redact=env("LEMONADE_A2A_OTEL_REDACT", defaults.otel_redact),
+            otel_prometheus=flag("LEMONADE_A2A_OTEL_PROMETHEUS", defaults.otel_prometheus),
+            otel_buffer=number("LEMONADE_A2A_OTEL_BUFFER", defaults.otel_buffer),
+            otel_allow_plaintext=flag(
+                "LEMONADE_A2A_OTEL_ALLOW_PLAINTEXT", defaults.otel_allow_plaintext
+            ),
+            log_format=env("LEMONADE_A2A_LOG_FORMAT", defaults.log_format).strip().lower(),
         )
