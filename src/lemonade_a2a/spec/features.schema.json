@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lemonade-a2a feature registry",
+  "type": "object",
+  "required": ["schema_version", "spec_version", "features"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "spec_version": {"type": "string"},
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "state", "since", "verified_by"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "pattern": "^(a2a|adapter|lemonade|sdk)(\\.[a-z0-9_]+)+$"},
+          "title": {"type": "string", "minLength": 3},
+          "state": {"enum": ["supported", "experimental", "unsupported", "deprecated", "observed", "unknown"]},
+          "since": {"type": "string"},
+          "until": {"type": "string"},
+          "config": {"type": "string"},
+          "toggle": {
+            "type": "object",
+            "required": ["setting", "on", "off"],
+            "properties": {
+              "setting": {"type": "string"},
+              "on": {},
+              "off": {},
+              "core": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "active": {
+            "type": "object",
+            "required": ["setting"],
+            "properties": {"setting": {"type": "string"}, "equals": {}},
+            "additionalProperties": false
+          },
+          "requires": {"type": "object"},
+          "verified_by": {"type": "array", "items": {"type": "string"}},
+          "notes": {"type": "string"}
+        }
+      }
+    }
+  }
+}

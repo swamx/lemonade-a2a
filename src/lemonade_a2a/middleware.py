@@ -16,6 +16,8 @@ from fastapi.responses import JSONResponse, Response
 from starlette.authentication import SimpleUser
 from starlette.requests import ClientDisconnect
 
+from .telemetry import NOOP, Telemetry, route_template, task_id_from_path
+
 
 async def normalize_rest_response(request, call_next):
     """Align HTTP+JSON responses with TCK expectations.
@@ -60,7 +62,7 @@ def _error_response(code: int, status: str, message: str, headers: dict | None =
     return JSONResponse(body, status_code=code, headers=headers)
 
 
-def require_api_key(api_keys: dict[str, str] | str):
+def require_api_key(api_keys: dict[str, str] | str, telemetry: Telemetry = NOOP):
     """Middleware factory: bearer / X-API-Key authentication (discovery stays public).
 
     ``api_keys`` maps an identity to its key; a bare string is the single-user
@@ -81,6 +83,32 @@ def require_api_key(api_keys: dict[str, str] | str):
             if hmac.compare_digest(supplied, key):
                 identity = name
         if identity is None:
+            telemetry.rejected("auth")
+            return _error_response(
+                401, "UNAUTHENTICATED", "Authentication required", {"WWW-Authenticate": "Bearer"}
+            )
+        request.scope["user"] = SimpleUser(identity)
+        return await call_next(request)
+
+    return middleware
+
+
+def authenticate_with(authenticator, telemetry: Telemetry = NOOP):
+    """Middleware factory for a plugin :class:`~lemonade_a2a.plugins.Authenticator`.
+
+    Same contract as :func:`require_api_key`: discovery and ``/healthz`` stay public, an
+    unauthenticated call is a 401, and the identity returned becomes the task owner.
+    """
+
+    async def middleware(request, call_next):
+        if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
+            return await call_next(request)
+        try:
+            identity = await authenticator.authenticate(dict(request.headers))
+        except Exception:  # noqa: BLE001 - a failing authenticator denies, it never lets a request through
+            identity = None
+        if not identity:
+            telemetry.rejected("auth")
             return _error_response(
                 401, "UNAUTHENTICATED", "Authentication required", {"WWW-Authenticate": "Bearer"}
             )
@@ -128,7 +156,7 @@ class RateLimiter:
         return allowed
 
 
-def rate_limit(limiter: RateLimiter):
+def rate_limit(limiter: RateLimiter, telemetry: Telemetry = NOOP):
     """Middleware factory: 429 with ``Retry-After`` once an identity exceeds its budget.
 
     Runs after authentication, so the identity is the API-key user; without keys it
@@ -146,6 +174,7 @@ def rate_limit(limiter: RateLimiter):
         )
         wait = limiter.retry_after(identity)
         if wait:
+            telemetry.rejected("rate_limit")
             return _error_response(
                 429,
                 "RESOURCE_EXHAUSTED",
@@ -274,9 +303,10 @@ class BodySizeLimitMiddleware:
     arbitrarily large JSON document in memory.
     """
 
-    def __init__(self, app, max_bytes: int) -> None:
+    def __init__(self, app, max_bytes: int, telemetry: Telemetry = NOOP) -> None:
         self.app = app
         self.max_bytes = max_bytes
+        self.telemetry = telemetry
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] != "http":
@@ -315,6 +345,7 @@ class BodySizeLimitMiddleware:
         await self.app(scope, limited_receive, tracking_send)
 
     async def _reject(self, scope, receive, send) -> None:
+        self.telemetry.rejected("size")
         error = {"code": 413, "status": "INVALID_ARGUMENT", "message": "Request body too large"}
         response = JSONResponse({"error": error}, status_code=413, headers={"Connection": "close"})
         await response(scope, receive, send)
@@ -328,3 +359,69 @@ async def add_security_headers(request, call_next):
     if request.url.path != AGENT_CARD_PATH:
         response.headers.setdefault("cache-control", "no-store")
     return response
+
+
+class TelemetryMiddleware:
+    """One server span and one duration measurement per HTTP request.
+
+    Continues an incoming W3C ``traceparent``, links requests about an existing task
+    (``/tasks/{id}...``) to the span that is executing it, and records the status.
+    Outermost, so rejected requests (401, 413, 429) are measured too. Does nothing
+    when telemetry is off.
+    """
+
+    def __init__(self, app, telemetry: Telemetry) -> None:
+        self.app = app
+        self.telemetry = telemetry
+
+    async def __call__(self, scope, receive, send) -> None:
+        telemetry = self.telemetry
+        if scope["type"] != "http" or not telemetry.enabled:
+            await self.app(scope, receive, send)
+            return
+
+        from opentelemetry import trace
+
+        headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
+        path = scope["path"]
+        method = scope["method"]
+        route = route_template(path)
+        binding = "jsonrpc" if route in ("/", "/a2a/jsonrpc") else "http_json"
+        task_id = task_id_from_path(path)
+        span = telemetry.start_server_span(
+            f"{method} {route}",
+            headers,
+            {
+                "http.request.method": method,
+                "http.route": route,
+                "url.path": route,  # the template, never the raw path (it carries task ids)
+                "a2a.binding": binding,
+                "a2a.task.id": task_id if telemetry.captures_metadata else None,
+            },
+        )
+        if task_id:
+            for link in telemetry.link_for_task(task_id):
+                span.add_link(link.context)
+        status = 500
+        started = time.perf_counter()
+
+        async def tracking_send(message):
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        try:
+            with trace.use_span(span, end_on_exit=False):
+                await self.app(scope, receive, tracking_send)
+        except BaseException as exc:
+            telemetry.fail(span, "internal error")
+            span.set_attribute("error.type", type(exc).__name__)
+            raise
+        finally:
+            seconds = time.perf_counter() - started
+            span.set_attribute("http.response.status_code", status)
+            if status >= 500:
+                telemetry.fail(span, "server error")
+            span.end()
+            telemetry.http_request(method, route, status, seconds)

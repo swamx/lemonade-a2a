@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lemonade-a2a compatibility manifest",
+  "type": "object",
+  "required": ["schema_version", "spec_version", "adapter", "python", "a2a_protocol", "a2a_sdk", "lemonade"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "spec_version": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "adapter": {"type": "object", "required": ["version"], "properties": {"version": {"type": "string"}}},
+    "python": {
+      "type": "object",
+      "required": ["tested", "minimum"],
+      "properties": {"tested": {"type": "array", "items": {"type": "string"}}, "minimum": {"type": "string"}}
+    },
+    "a2a_protocol": {
+      "type": "object",
+      "required": ["supported"],
+      "properties": {"supported": {"type": "array", "items": {"type": "string"}}}
+    },
+    "a2a_sdk": {
+      "type": "object",
+      "required": ["declared", "tested"],
+      "properties": {
+        "declared": {"type": "string"},
+        "tested": {"type": "array", "items": {"type": "string"}},
+        "known_broken": {
+          "type": "array",
+          "items": {"type": "object", "required": ["range", "reason"], "properties": {"range": {"type": "string"}, "reason": {"type": "string"}}}
+        }
+      }
+    },
+    "lemonade": {
+      "type": "object",
+      "required": ["tested", "minimum"],
+      "properties": {"tested": {"type": "array", "items": {"type": "string"}}, "minimum": {"type": "string"}}
+    },
+    "evidence": {"type": "object"}
+  }
+}

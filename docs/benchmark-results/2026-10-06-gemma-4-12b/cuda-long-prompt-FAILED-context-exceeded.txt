@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "C:\Users\swamx\OneDrive\Desktop\repo\lemonade-a2a\benchmarks\benchmark_evidence.py", line 337, in <module>
+    main()
+  File "C:\Users\swamx\OneDrive\Desktop\repo\lemonade-a2a\benchmarks\benchmark_evidence.py", line 330, in main
+    report = asyncio.run(run(args))
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\swamx\anaconda3\Lib\asyncio\runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\swamx\anaconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\swamx\anaconda3\Lib\asyncio\base_events.py", line 653, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\swamx\OneDrive\Desktop\repo\lemonade-a2a\benchmarks\benchmark_evidence.py", line 230, in run
+    await direct_stream(client, args)
+  File "C:\Users\swamx\OneDrive\Desktop\repo\lemonade-a2a\benchmarks\benchmark_evidence.py", line 105, in direct_stream
+    return timing(start, first, chunks, why)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\swamx\OneDrive\Desktop\repo\lemonade-a2a\benchmarks\benchmark_evidence.py", line 73, in timing
+    raise RuntimeError(f"stream produced no text chunks{(' (' + why + ')') if why else ''}")
+RuntimeError: stream produced no text chunks (events=1, reasoning_chunks=0, finish_reason=None, error={'code': 400, 'message': 'request (1647 tokens) exceeds the available context size (1536 tokens), try increasing it', 'n_ctx': 1536, 'n_prompt_tokens': 1647, 'status_code': 400, 'type': 'exceed_context_size_error'})
+exit=1

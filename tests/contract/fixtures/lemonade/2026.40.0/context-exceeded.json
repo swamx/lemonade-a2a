@@ -1,0 +1,8 @@
+{
+  "answer": "",
+  "reasoning": "",
+  "usage": null,
+  "outcome": "failed",
+  "failure": "The request is longer than the model's context window.",
+  "recorded": "real Lemonade 2026.40.0, model Gemma-4-12B-it-GGUF"
+}

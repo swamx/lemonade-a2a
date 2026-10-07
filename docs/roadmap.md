@@ -123,10 +123,10 @@ Everything P0 and P1 left open, in one place. Nothing here blocks the specificat
 
 **Evidence**
 
-- [ ] **Gemma-4-12B and other reasoning models.** The harness (and adapter) read `content` only, and the model streams `reasoning_content` first. Make the harness count reasoning chunks or give the model a larger output budget, then re-run the long-prompt and long-output cells and the CPU cell (with a per-cell timeout, since it hung for over two hours).
-- [ ] **Confirm or refute the +1.6 s overhead** seen for 12B on CUDA (inside the 12 s spread of the direct runs), on a quieter machine or with more runs. Until then it stays recorded as over budget.
-- [ ] **Real inference on a second machine.** The Linux runner measures protocol overhead against the mock only. Run `validate_real_lemonade.py` and the benchmarks on another PC (or a self-hosted runner with a small CPU model).
-- [ ] **Decide how the adapter treats `reasoning_content`.** Today it is dropped, and a response that is all reasoning completes with an empty artifact. Options: keep as is and document, fail the task with a clear message, or forward reasoning as an opt-in non-answer part.
+- [x] **Gemma-4-12B and other reasoning models**: re-run and **resolved** ([benchmarks.md](benchmarks.md#gemma-4-12b-re-run-2026-10-06)). The earlier "no text chunks" failures were *not* reasoning: the model loads with a 1,459-token context and Lemonade reported the oversized prompt as an error inside a 200 stream, which also exposed and fixed an adapter defect (such a task used to complete empty). The harness now explains empty streams, a `medium-prompt` workload fits the small context, and the harness records time to the first output of any kind plus reasoning chunks per run, because answer-chunk TTFT is dominated by the model's random thinking length. Results: 30-run short +87 ms TTFT, 20-run medium prompt +7 ms to first output / +320 ms to first answer, CPU (4 runs, indicative) +4.4 s on a 53-72 s spread; all within budget except where marked indicative. The long-prompt workload cannot run on this GPU for this model.
+- [x] **Confirm or refute the +1.6 s overhead** seen for 12B on CUDA: **refuted as noise.** A 30-run repeat measured +87 ms TTFT and +496 ms total latency (limit 1.2 s, 5% of a 24 s request), throughput identical (16.8 vs 16.9 chunks/s): within budget. The direct runs alone varied from 14 s to 37 s to the first token. See [benchmarks.md](benchmarks.md#gemma-4-12b-re-run-2026-10-06).
+- [x] **Real inference on a second machine**: done on GitHub's Linux runner (AMD EPYC, CPU only) with a real Lemonade 2026.40.0 and a 270M model via `real-lemonade.yml`: `doctor --deep`, the real-Lemonade pytest suite, the end-to-end check and the cancellation proof all pass; TTFT +8.9 ms over the direct path in an indicative 5-run benchmark ([benchmarks.md](benchmarks.md#real-lemonade-on-a-second-machine-githubs-linux-runner---2026-10-07)). A second *physical* machine with a GPU or NPU would still add evidence and remains welcome (the compatibility-report issue template is for that).
+- [x] **Decide how the adapter treats `reasoning_content`**: dropped by default, optionally streamed as a separate `lemonade-reasoning` artifact (`LEMONADE_A2A_REASONING`); a response that is all reasoning fails with a clear message instead of completing empty. Tested, with recorded vLLM-style reasoning streams ([protocol-mapping.md](protocol-mapping.md)).
 
 **Hardware (blocked: this test machine has an Intel CPU and an NVIDIA GPU)**
 
@@ -135,12 +135,12 @@ Everything P0 and P1 left open, in one place. Nothing here blocks the specificat
 
 **Deferred decisions, each with its revisit trigger**
 
-- [ ] Configurable event-queue bound: needs an upstream change in the A2A SDK (its v2 handler ignores a custom queue manager). Revisit when the SDK exposes it, and file the request.
-- [ ] Read the OAuth/OIDC token subject inside the adapter: revisit if a deployment needs per-user task ownership behind a shared gateway. The gateway pattern is documented.
-- [ ] ITK: not applicable to a standalone adapter; revisit if an adapter-facing mode appears.
-- [ ] Re-test the A2A CLI with card discovery once a CLI release bundles a2a-go v2.6.0 or later.
-- [ ] Remove the TCK messageId workaround and the two expected deviations when [a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248) is fixed (the patch will stop applying, which is the signal).
-- [ ] Re-evaluate the optional capabilities left undeclared (gRPC, push notifications, extended Agent Card) against [conformance.md](conformance.md); push notifications additionally need the URL policy wired in.
+- [~] Configurable event-queue bound: needs an upstream change in the A2A SDK (its v2 handler ignores a custom queue manager). **Drafted** in [upstream-issues/a2a-sdk-event-queue-bound.md](upstream-issues/a2a-sdk-event-queue-bound.md) with the stalled-client evidence; **not filed**, because filing an issue on another project needs the owner's OK. Revisit when the SDK exposes it.
+- [x] Read the OAuth/OIDC token subject inside the adapter: **closed as a decision.** The gateway pattern is documented ([security.md](security.md)) and the extension API now gives a deployment that needs it a supported way to do so (an authenticator plugin returns the identity, which becomes the task owner) without changing the adapter. Reopen if such a plugin should ship in the box.
+- [x] ITK: **closed as a decision**: it tests SDKs against each other through its own agents, so it does not apply to a standalone adapter. Revisit only if an adapter-facing mode appears.
+- [ ] Re-test the A2A CLI with card discovery once a CLI release bundles a2a-go v2.6.0 or later. **Checked 2026-10-06:** the latest CLI release is still v0.3.0 and `main` still depends on a2a-go v2.5.0, so there is nothing to re-test yet (a CLI rebuilt on v2.6.0 already passes; see [interoperability.md](interoperability.md)). External dependency.
+- [ ] Remove the TCK messageId workaround and the two expected deviations when [a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248) is fixed. **Checked 2026-10-06:** the issue is open with no response. Nothing to do until then; the patch will stop applying when the TCK changes, which fails the CI job and is the signal. External dependency.
+- [x] Re-evaluate the optional capabilities left undeclared (gRPC, push notifications, extended Agent Card): **done**, decisions unchanged, with reasons and triggers in [conformance.md](conformance.md#optional-capabilities-re-evaluated-2026-10-06).
 
 **Exit criterion:** every item is either done with evidence or explicitly closed with a reason; the hardware items may remain open only as "blocked on hardware".
 
@@ -150,35 +150,35 @@ Design: [specification.md](specification.md). The goal is that after `pip instal
 
 **Specification and data**
 
-- [ ] Review and accept the draft specification (open questions in §11 resolved or deferred).
-- [ ] Feature registry (`features.json` plus JSON Schema) seeded from the current state, with `verified_by` evidence for every `supported` entry.
-- [ ] `@pytest.mark.feature("<id>")` marker and a CI check that the registry and the tests agree (no `supported` feature without a passing test, no unknown ids).
-- [ ] Compatibility manifest (`compat.json`) generated from CI results at release time, never hand-edited.
+- [x] Review and accept the draft specification (open questions in §11 resolved or deferred). **Done**: accepted and implemented; the open questions are answered in [specification.md](specification.md#11-decisions-taken-formerly-open-questions).
+- [x] Feature registry (`features.json` plus JSON Schema) seeded from the current state, with `verified_by` evidence for every `supported` entry. **Done**: 49 features, schema-validated, evidence for every `supported` entry checked by `tests/test_registry.py`; rendered to [features.md](features.md).
+- [x] `@pytest.mark.feature("<id>")` marker and a CI check that the registry and the tests agree (no `supported` feature without a passing test, no unknown ids). **Done differently**: no marker was needed; the registry names its evidence and `tests/test_registry.py` fails if a named test, script or TCK result does not exist, a supported feature has none, a setting is unknown, or `features.md` is stale.
+- [x] Compatibility manifest (`compat.json`) generated from CI results at release time, never hand-edited. **Done**: `scripts/generate_manifest.py` writes it from canary and TCK results; `doctor` warns if it was generated for another adapter version.
 
 **Tooling**
 
-- [ ] `lemonade-a2a doctor`: component versions against the manifest, config consistency, card versus registry, backend probe; verdicts and exit codes `0/1/2/3`; `--json`, `--strict`.
-- [ ] `lemonade-a2a capabilities`: the registry resolved for this install and configuration.
-- [ ] `lemonade-a2a doctor --sdk-gap`: what the installed `a2a-sdk` offers that the adapter does not use.
-- [ ] `lemonade-a2a config show | validate | schema` with secrets redacted and the source of each value.
-- [ ] `lemonade-a2a support-bundle`: redacted archive (versions, effective config, doctor output, logs, platform and Lemonade info), tested for the absence of prompts, responses and keys; issue template asks for it.
-- [ ] Optional `GET /.well-known/lemonade-a2a/capabilities` (authenticated, off by default) and an optional, never-required Agent Card extension pointing to it.
+- [x] `lemonade-a2a doctor`: component versions against the manifest, config consistency, card versus registry, backend probe; verdicts and exit codes `0/1/2/3`; `--json`, `--strict`. **Done**: `tests/test_cli_and_compat.py`; also checks plugins and the Lemonade model's context window.
+- [x] `lemonade-a2a capabilities`: the registry resolved for this install and configuration. **Done**.
+- [x] `lemonade-a2a doctor --sdk-gap`: what the installed `a2a-sdk` offers that the adapter does not use. **Done** (`src/lemonade_a2a/sdk_gap.py`).
+- [x] `lemonade-a2a config show | validate | schema` with secrets redacted and the source of each value. **Done**; also `config schema` as JSON Schema.
+- [x] `lemonade-a2a support-bundle`: redacted archive (versions, effective config, doctor output, logs, platform and Lemonade info), tested for the absence of prompts, responses and keys; issue template asks for it. **Done**: redaction of keys and the home directory is tested; GitHub issue templates ask for `doctor` output and the bundle.
+- [x] Optional `GET /.well-known/lemonade-a2a/capabilities` (authenticated, off by default) and an optional, never-required Agent Card extension pointing to it. **Done**, including the test that the `/{tenant}` mount does not shadow it.
 
 **Control and flexibility**
 
-- [ ] `LEMONADE_A2A_COMPAT=off|warn|strict` evaluated at startup with the same checks as `doctor`.
-- [ ] Feature flags by registry id for opt-in and experimental features; turning a core feature off changes both the Agent Card and the behaviour, checked by `doctor`.
-- [ ] Layered configuration (defaults, config file, environment, flags); every existing environment variable keeps working.
-- [ ] Extension API v1 through entry points: `lemonade_a2a.backends`, `task_stores`, `authenticators`, `telemetry`, each a small `Protocol` with an `api_version`; `doctor` lists plugins and flags mismatches.
-- [ ] A reference second implementation per seam to prove the API is usable: a persistent (SQLite) task store, and a second OpenAI-compatible backend in the contract tests.
+- [x] `LEMONADE_A2A_COMPAT=off|warn|strict` evaluated at startup with the same checks as `doctor`. **Done**; the result is also the `lemonade_a2a_compat_status` metric.
+- [x] Feature flags by registry id for opt-in and experimental features; turning a core feature off changes both the Agent Card and the behaviour, checked by `doctor`. **Done**: `LEMONADE_A2A_FEATURES`; `-a2a.streaming` makes the card say `streaming: false` and the streaming methods answer `UNSUPPORTED_OPERATION` on both bindings (tested).
+- [x] Layered configuration (defaults, config file, environment, flags); every existing environment variable keeps working. **Done**: TOML file, environment, flags; `config show` reports the source of every value.
+- [x] Extension API v1 through entry points: `lemonade_a2a.backends`, `task_stores`, `authenticators`, `telemetry`, each a small `Protocol` with an `api_version`; `doctor` lists plugins and flags mismatches. **Done** ([extending.md](extending.md)); `doctor` lists plugins and fails one built for another API version.
+- [x] A reference second implementation per seam to prove the API is usable: a persistent (SQLite) task store, and a second OpenAI-compatible backend in the contract tests. **Done**: SQLite task store (reference), a second backend, an authenticator and a telemetry plugin running real requests in tests, and OpenAI / llama.cpp / vLLM stream shapes in the contract tests.
 
 **Upgrade safety**
 
-- [ ] Canary CI matrix: lowest supported, latest stable and latest pre-release `a2a-sdk`, running unit tests, the TCK (official and patched) and `doctor`; failure on *latest* opens an issue, failure on *lowest* blocks merges.
-- [ ] Backend contract tests (`tests/contract/`): recorded request and stream fixtures per Lemonade version; a new Lemonade release is added by recording fixtures.
-- [ ] Widen or confirm the `a2a-sdk` range (currently `>=1.2.0,<1.3`) based on the canary instead of by guess.
-- [ ] Version and deprecation policy written down (semantic versioning, deprecation period for settings and the extension API).
-- [ ] Packaging: wheel and sdist build in CI, optional extras (`[otel]`, `[dev]`), and a release process. **Publishing to PyPI needs the owner's explicit approval and is not part of this item.**
+- [x] Canary CI matrix: lowest supported, latest stable and latest pre-release `a2a-sdk`, running unit tests, the TCK (official and patched) and `doctor`; failure on *latest* opens an issue, failure on *lowest* blocks merges. **Done**: [canary.yml](../.github/workflows/canary.yml) (lowest blocks, latest opens an issue, unbounded is informational), each running tests, `doctor` and the TCK twice. The first GitHub run happens on the pull request that adds it.
+- [x] Backend contract tests (`tests/contract/`): recorded request and stream fixtures per Lemonade version; a new Lemonade release is added by recording fixtures. **Done**: `tests/contract/` with recorded Lemonade streams and hand-authored OpenAI / llama.cpp / vLLM streams; a tested version without recordings fails a test.
+- [x] Widen or confirm the `a2a-sdk` range (`>=1.2.0,<1.3`) based on the canary instead of by guess: **confirmed.** The first local canary run (2026-10-07) installed a clean environment per version and ran the whole suite, `doctor` and the TCK twice: **1.2.0, 1.2.1 and 1.2.2 all pass** (422 tests each; TCK 157 passed with only the two known deviations, 161 passed with the workaround). The canary also found a real flaw on its first run: five of *my own* tests assumed the shipped manifest lists whichever SDK is installed, so they failed on 1.2.0 and 1.2.2 even though the product was right (`doctor` correctly warned "inside the range but untested"); they now use a manifest fixture, and the shipped manifest is generated from this run (`tested`: 1.2.0, 1.2.1, 1.2.2). Widening past 1.2.x is deferred: there is no 1.3 release to test, and the `unbounded` variant will say what it breaks when one appears.
+- [x] Version and deprecation policy written down (semantic versioning, deprecation period for settings and the extension API). **Done**: [upgrading.md](upgrading.md#versioning-policy).
+- [x] Packaging: wheel and sdist build in CI, optional extras (`[otel]`, `[dev]`), and a release process. **Publishing to PyPI needs the owner's explicit approval and is not part of this item.** **Done**: the `package` job builds, installs the wheel alone with extras into a clean environment and runs the user commands; [releasing.md](releasing.md) is the checklist. **Publishing to PyPI still needs the owner's explicit approval and was not done.**
 
 **Exit criterion:** on a clean environment, `pip install -U a2a-sdk lemonade-a2a` followed by `lemonade-a2a doctor` gives a correct verdict in under five seconds for a supported combination, a clear failure for a known-broken one, and the canary matrix has run green at least once on all three SDK variants.
 
@@ -188,29 +188,29 @@ Design: [observability.md](observability.md). Opt-in, free when off, private by 
 
 **Foundation**
 
-- [ ] Review and accept the draft (semantic-convention version to pin, open questions in §9).
-- [ ] `lemonade_a2a.telemetry` facade over `opentelemetry-api` (no-op when off); `[otel]` extra for the SDK and OTLP exporters; declare the API dependency explicitly.
-- [ ] Configuration: standard `OTEL_*` variables plus `LEMONADE_A2A_OTEL`, `_CAPTURE`, `_REDACT`, `_PROMETHEUS`, `_BUFFER`; validated by `config validate`; reported by `doctor`.
+- [x] Review and accept the draft (semantic-convention version to pin, open questions in §9). **Done**: GenAI conventions followed as of this release and flagged as in development upstream; open questions answered in [observability.md](observability.md).
+- [x] `lemonade_a2a.telemetry` facade over `opentelemetry-api` (no-op when off); `[otel]` extra for the SDK and OTLP exporters; declare the API dependency explicitly. **Done**; `opentelemetry-api` is now a declared core dependency.
+- [x] Configuration: standard `OTEL_*` variables plus `LEMONADE_A2A_OTEL`, `_CAPTURE`, `_REDACT`, `_PROMETHEUS`, `_BUFFER`; validated by `config validate`; reported by `doctor`. **Done**; validated by `config validate`, reported by `doctor`.
 
 **Signals**
 
-- [ ] Traces: request span, `a2a.task.execute` (with first-chunk, cancel, disconnect, deadline and stall events), `lemonade.chat.stream` client span; span links for later requests about a task; W3C trace-context in and out (to Lemonade); sanitized error recording.
-- [ ] Metrics: the instrument table in [observability.md](observability.md), low cardinality only; GenAI conventions behind the pinned version.
-- [ ] Logs: structured JSON with trace and span ids, stable event names, optional OpenTelemetry log bridge.
-- [ ] Optional Prometheus pull endpoint (authenticated).
+- [x] Traces: request span, `a2a.task.execute` (with first-chunk, cancel, disconnect, deadline and stall events), `lemonade.chat.stream` client span; span links for later requests about a task; W3C trace-context in and out (to Lemonade); sanitized error recording. **Done** (a `backpressure_stall` event was dropped: the SDK handles the stall and there is nothing in the adapter to observe).
+- [x] Metrics: the instrument table in [observability.md](observability.md), low cardinality only; GenAI conventions behind the pinned version. **Done**; the adapter is a GenAI client of Lemonade, so it records `gen_ai.client.*`.
+- [x] Logs: structured JSON with trace and span ids, stable event names, optional OpenTelemetry log bridge. **Done**.
+- [x] Optional Prometheus pull endpoint (authenticated). **Done**.
 
 **Privacy, safety, performance**
 
-- [ ] Capture modes `none` (default) / `metadata` / `content`; the `external` profile refuses `content` and plaintext OTLP without explicit acceptance.
-- [ ] Property test: random prompts never appear in any exported span, metric or log in `none` and `metadata` modes.
-- [ ] Resilience tests: collector down or slow and exporter errors never fail or slow requests; bounded buffers; shutdown flush is bounded.
-- [ ] Benchmark modes (off, 100%, 10% sampling) and a telemetry overhead budget in `check_budget.py`, confirmed by measurement before it becomes a gate.
+- [x] Capture modes `none` (default) / `metadata` / `content`; the `external` profile refuses `content` and plaintext OTLP without explicit acceptance. **Done**; refusal under `external` is tested.
+- [x] Property test: random prompts never appear in any exported span, metric or log in `none` and `metadata` modes. **Done** (hypothesis, success and failure paths).
+- [x] Resilience tests: collector down or slow and exporter errors never fail or slow requests; bounded buffers; shutdown flush is bounded. **Done**: dead, raising and slow exporters, bounded shutdown.
+- [x] Benchmark modes and a telemetry overhead budget: `benchmarks/telemetry_overhead.py` (paired, randomized order, with an identical control process); instrumentation +1.1 ms, 10% sampling +0.5 ms, full OTLP export +1.9 ms on a 40 ms mock request, throughput unchanged. The budget was **revised from 1 ms to 2.5 ms (or 5%)** after measuring, with the reasons written down ([observability.md](observability.md#6-performance)). The same measurement found that the A2A SDK's own tracing cost more than ours with telemetry *off* (+15.6 ms bursty, 2-5 ms warm); `serve` now turns it off by default.
 
 **Operations**
 
-- [ ] `examples/observability/`: Docker Compose stack (Collector, trace backend, Prometheus, Grafana), Grafana dashboard and example alert rules.
-- [ ] Documentation: configuration reference, sampling and retention guidance, privacy modes.
-- [ ] Canary against the latest OpenTelemetry release in the compatibility matrix.
+- [x] `examples/observability/`: Docker Compose stack (Collector, trace backend, Prometheus, Grafana), Grafana dashboard and example alert rules. **Done**; a test fails if the dashboard or alerts use a metric the adapter does not expose.
+- [x] Documentation: configuration reference, sampling and retention guidance, privacy modes. **Done** ([observability.md](observability.md)).
+- [x] Canary against the latest OpenTelemetry release in the compatibility matrix. **Done** (`otel` job in canary.yml).
 
 **Exit criterion:** with `[otel]` installed and an exporter configured, one request produces a connected trace from the client through the adapter to Lemonade, the dashboards show the documented metrics, the no-content-leak and resilience tests pass, and the measured overhead is inside the budget.
 

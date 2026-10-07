@@ -1,0 +1,119 @@
+name: Canary
+
+# Compatibility canary (docs/specification.md section 9): does the adapter still work with the
+# a2a-sdk (and OpenTelemetry) releases people will actually pip install?
+#
+#   lowest     the oldest a2a-sdk the declared range allows: a failure here BLOCKS (the claim is false)
+#   latest     the newest a2a-sdk the declared range allows (what `pip install -U` gives): a failure
+#              opens an issue on the scheduled run
+#   unbounded  the newest a2a-sdk including pre-releases with our upper bound removed: informational,
+#              it shows what widening the range would break
+#
+# Weekly, on demand, and on pull requests that touch dependencies or the specification data.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 1"
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "scripts/canary.py"
+      - "scripts/generate_manifest.py"
+      - "src/lemonade_a2a/spec/**"
+      - ".github/workflows/canary.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk:
+    name: a2a-sdk ${{ matrix.sdk }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk: "1.2.0" # keep equal to the lower bound in pyproject.toml
+            blocking: true
+          - sdk: latest
+            blocking: false
+          - sdk: unbounded
+            blocking: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: a2aproject/a2a-tck
+          ref: 263b9cfaf16a554bdfb166a7ba5b67716e946349 # keep equal to TCK_REF in tck.yml  # pragma: allowlist secret
+          path: a2a-tck
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Prepare the TCK (its own virtualenv)
+        run: |
+          python -m pip install --upgrade pip uv
+          uv venv a2a-tck/.venv
+          VIRTUAL_ENV="$PWD/a2a-tck/.venv" uv pip install -e a2a-tck
+      - name: "Run the canary (tests, doctor, and the TCK twice - official and with the workaround)"
+        id: canary
+        continue-on-error: ${{ !matrix.blocking }}
+        run: python scripts/canary.py --sdk "${{ matrix.sdk }}" --tck-dir a2a-tck --output "canary-${{ matrix.sdk }}.json"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### a2a-sdk ${{ matrix.sdk }}"
+            python - <<'PY'
+          import json, pathlib
+          p = pathlib.Path("canary-${{ matrix.sdk }}.json")
+          if p.exists():
+              for r in json.loads(p.read_text())["results"]:
+                  print(f"- installed `{r['a2a_sdk']}`: **{r['status']}**, tests `{r.get("tests")}`, doctor `{r.get("doctor")}`, TCK `{r.get("tck")}` / patched `{r.get("tck_patched")}`")
+          else:
+              print("No result file was produced.")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: canary-${{ matrix.sdk }}
+          path: canary-${{ matrix.sdk }}.json
+          if-no-files-found: ignore
+      - name: Tell someone when the newest supported SDK breaks
+        if: ${{ steps.canary.outcome == 'failure' && matrix.sdk == 'latest' && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --title "Canary: lemonade-a2a fails with the newest a2a-sdk in the declared range" \
+            --body "The scheduled canary failed for \`a2a-sdk\` latest. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Pin the range below the broken release and fix, then widen it again." || true
+
+  otel:
+    name: OpenTelemetry latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install with the newest OpenTelemetry the declared range allows
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+          python -m pip install --upgrade opentelemetry-api opentelemetry-sdk \
+            opentelemetry-exporter-otlp-proto-http opentelemetry-exporter-otlp-proto-grpc \
+            opentelemetry-exporter-prometheus
+          python -m pip list | grep -i opentelemetry
+      - name: Telemetry tests
+        run: pytest -q tests/test_telemetry.py tests/test_telemetry_setup.py

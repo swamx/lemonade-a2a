@@ -99,3 +99,16 @@ The benchmark and challenge submission should link to this evidence rather than 
 MOCK_LEMONADE_RESPONSES='{"TCK artifact test": "Generated text content"}' \
   python -m uvicorn tests.mock_lemonade:app --port 13305
 ```
+
+## Optional capabilities, re-evaluated (2026-10-06)
+
+The decision table above was re-checked against what the installed `a2a-sdk` (1.2.x) now offers (`lemonade-a2a doctor --sdk-gap` lists it) and what the adapter has gained since: per-user identities, a tested SSRF policy ([`safe_urls.py`](../src/lemonade_a2a/safe_urls.py)), rate limiting and mutual TLS.
+
+| Capability | SDK offers | Decision | What would change it |
+|---|---|---|---|
+| gRPC binding | `grpc_handler` | **Still not offered.** Lemonade's own surface is HTTP, no client has asked, and it adds a dependency and a second listener (with its own auth, TLS and size limits to harden and test) | A concrete client that needs gRPC |
+| Push notifications | sender and config stores | **Still not offered.** The URL policy now exists and is tested, but it is not wired in: a sender also needs per-task config storage with ownership, redirect and size handling, retry limits and an allowlist for private networks (the deployment, not the adapter, knows which are legitimate) | A deployment that needs server-initiated delivery; wire `safe_urls` in first and run the TCK's push tests |
+| Extended Agent Card | `extended_card_modifier` hook | **Still not offered.** Per-user identities now exist, but there is no information that differs per user | A feature whose description depends on the caller (for example per-user model access) |
+| Input-mode validation in the handler | `validate_input_modes` | Not used: the executor validates parts itself and rejects non-text parts with `CONTENT_TYPE_NOT_SUPPORTED` on both bindings (tested) | Richer parts |
+
+The feature registry records each of these as `unsupported` with the reason, and `doctor --adapter-url` fails if a running adapter's card declares one of them.

@@ -41,6 +41,10 @@ CI runs exactly these (Python 3.11-3.13), plus a mock-Lemonade black-box job.
 |---|---|---|
 | Unit / in-process | `pytest` | nothing |
 | Live lifecycle (real sockets: stalled client, disconnect, cancel races) | `pytest tests/test_live_lifecycle.py` (part of plain `pytest`, about 15 s) | nothing, starts its own mock and adapter |
+| Backend contract | `pytest tests/contract` (recorded Lemonade streams plus OpenAI / llama.cpp / vLLM shapes); record a new Lemonade release with `scripts/record_contract_fixtures.py` | nothing (recording needs a real Lemonade) |
+| Registry and manifest | `pytest tests/test_registry.py`; after editing `features.json` run `python scripts/generate_features_doc.py` | nothing |
+| Telemetry | `pytest tests/test_telemetry*.py tests/test_observability_examples.py`; overhead: `python benchmarks/telemetry_overhead.py --check` | nothing |
+| SDK canary | `python scripts/canary.py --sdk 1.2.0 --sdk latest` (a clean environment per version) | network |
 | Fuzzing | `pytest tests/test_fuzz.py` (hypothesis; raise `max_examples` locally to dig deeper) | nothing |
 | Black-box vs mock Lemonade | `python scripts/blackbox_e2e.py` | mock (`tests/mock_lemonade.py`) and adapter running |
 | Smoke conformance | `python scripts/check_a2a_conformance.py` | adapter running |

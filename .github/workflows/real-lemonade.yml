@@ -1,0 +1,89 @@
+name: Real Lemonade (Linux, CPU)
+
+# Real inference on a second, independent machine: a hosted Ubuntu runner running an actual Lemonade
+# Server (the "embeddable" release, llama.cpp CPU backend) with a tiny model. It is slow and says
+# nothing about GPU or NPU speed; it proves the adapter, the validation script and `doctor` work against
+# a real Lemonade on another OS and CPU. Not a required check.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 1 * *"
+  pull_request:
+    paths:
+      - ".github/workflows/real-lemonade.yml"
+      - "scripts/validate_real_lemonade.py"
+      - "tests/integration/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-lemonade-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LEMONADE_VERSION: "2026.40.0" # the version listed as tested in the compatibility manifest
+  LEMONADE_MODEL: Tiny-Test-Model-GGUF # a 270M-parameter model from Lemonade's own registry
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install the adapter
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]' psutil
+      - name: Install Lemonade Server (embeddable release)
+        run: |
+          curl -fsSL -o lemonade.tar.gz \
+            "https://github.com/lemonade-sdk/lemonade/releases/download/v${LEMONADE_VERSION}/lemonade-embeddable-${LEMONADE_VERSION}-ubuntu-x64.tar.gz"
+          tar xzf lemonade.tar.gz
+          ls lemonade-embeddable-*/
+      - name: Start Lemonade and pull the model
+        run: |
+          cd lemonade-embeddable-*/
+          ./lemond > "$GITHUB_WORKSPACE/lemond.log" 2>&1 &
+          for _ in $(seq 60); do curl -sf http://127.0.0.1:13305/api/v1/health && break; sleep 1; done
+          curl -s http://127.0.0.1:13305/api/v1/health; echo
+          ./lemonade pull "$LEMONADE_MODEL"
+          # The first request downloads and starts the llama.cpp CPU backend; give it time.
+          curl -sf -m 600 http://127.0.0.1:13305/v1/chat/completions \
+            -H 'content-type: application/json' \
+            -d "{\"model\":\"$LEMONADE_MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":4}"
+      - name: doctor
+        env:
+          LEMONADE_BASE_URL: http://127.0.0.1:13305/v1
+        run: lemonade-a2a doctor --deep --json | tee doctor.json
+      - name: Validate (pytest integration suite, validator, cancellation proof, benchmark)
+        env:
+          LEMONADE_BASE_URL: http://127.0.0.1:13305/v1
+        run: python scripts/validate_real_lemonade.py --model "$LEMONADE_MODEL" --runs 5
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Real Lemonade ${LEMONADE_VERSION} on Linux (CPU), model ${LEMONADE_MODEL}"
+            python - <<'PY'
+          import glob, json, pathlib
+          for path in sorted(glob.glob("reports/real-lemonade-*/summary.json")):
+              data = json.loads(pathlib.Path(path).read_text())
+              for step in data.get("steps", []):
+                  print(f"- {step.get('name')}: **{'pass' if step.get('ok') else 'FAIL'}** ({step.get('seconds')} s)")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: real-lemonade-linux
+          path: |
+            reports/
+            doctor.json
+            lemond.log
+          if-no-files-found: ignore
