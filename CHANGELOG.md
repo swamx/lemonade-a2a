@@ -23,6 +23,7 @@ First release of the Python reference adapter: an A2A 1.0 protocol surface in fr
   - official A2A TCK against the protocol surface: 157 passed, 0 failed, 4 expected-fail (SHOULD, a TCK test artifact), the rest skipped for undeclared capabilities; `docs/conformance-results.json`;
   - independent clients (A2A CLI, JS SDK, Go library, .NET, Java, Inspector validators) over both bindings, mock and real Lemonade, each 10/10; `docs/interoperability.md`;
   - opt-in real-Lemonade `pytest` suite with automatic failure diagnostics and a one-command validation script;
+  - **real inference on a second machine**: a CI workflow runs an actual Lemonade 2026.40.0 with a small model on a Linux runner (CPU) and passes `doctor --deep`, the integration suite, the end-to-end check and the cancellation proof;
   - pinned-TCK and benchmark-budget CI workflows;
   - real Lemonade 2026.40.0 on llama.cpp CUDA, Vulkan and CPU with a 1.7B and a 4B model, plus long-prompt and long-output workloads and a defined overhead budget; Gemma-4-12B only partly measured and over budget on CUDA (+1.6 s, likely noise, unconfirmed); `docs/benchmarks.md`;
   - deterministic mock-Lemonade black-box E2E in CI (Python 3.11-3.13).

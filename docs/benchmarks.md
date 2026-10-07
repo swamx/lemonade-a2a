@@ -194,6 +194,20 @@ Closes the carry-over from the matrix above. Raw reports: [benchmark-results/202
 - **CPU, 4 runs only.** 12B on CPU takes about a minute per answer, so the cell is indicative: +4.4 s on a 53 to 72 s spread, with the same throughput. It shows no sign of adapter-specific slowdown; it does not establish a number.
 - **Memory.** The adapter's RSS was 74 MB in the CPU run and 98 MB in the 20-run run that forwards reasoning as artifacts: with that mode every stored task holds its thinking text, so footprint grows with the task store (bounded by `LEMONADE_A2A_MAX_STORED_TASKS`). The default mode drops the thinking.
 
+### Real Lemonade on a second machine (GitHub's Linux runner) - 2026-10-07
+
+The `real-lemonade.yml` workflow runs an actual Lemonade Server (the 2026.40.0 *embeddable* release, llama.cpp CPU backend, downloaded on the runner) with the 270M-parameter `Tiny-Test-Model-GGUF` from Lemonade's registry, then `lemonade-a2a doctor --deep` and `scripts/validate_real_lemonade.py` against it. Machine: Ubuntu (Linux 6.17, azure), **AMD EPYC 7763, 15.6 GB, CPU only**; Python 3.12.15; `a2a-sdk` 1.2.2. This is the second, independent machine for *real inference* (the mock benchmark in `bench.yml` only measured protocol overhead). The run is the first one of the workflow, on pull request #21.
+
+| Step | Result |
+|---|---|
+| `doctor --deep` | **pass**: every check green, Lemonade 2026.40.0 read from `/api/v1/health` and listed as tested, model context window 4,096 tokens, 16 answer chunks from a streaming generation |
+| pytest integration suite (real Lemonade) | **pass** (4.5 s) |
+| real-Lemonade end-to-end | **pass** (0.5 s) |
+| cancellation proof | **pass** (62.7 s) |
+| benchmark, 5 runs | direct vs A2A: TTFT **33.0 / 41.9 ms (+8.9)**, total 772.9 / 830.5 ms (+57.6), throughput 76.4 / 74.5 chunks/s |
+
+Five runs on a shared runner make the benchmark row **indicative only** (the A2A p95 total, 1.9 s, shows a slow outlier); what the run establishes is that the adapter, `doctor`, the recorded-fixture assumptions and the validation script all work against a real Lemonade on another operating system and CPU vendor, and that the adapter's cost to the first token is single-digit milliseconds there too. The numbers are in the workflow's artifact (`real-lemonade-linux`); a 30-run cell would need a longer job.
+
 ### OpenTelemetry overhead
 
 Method, modes and the revised budget are in [observability.md](observability.md#6-performance); results in [benchmark-results/2026-10-07-telemetry-overhead.json](benchmark-results/2026-10-07-telemetry-overhead.json). Paired against `off` on the mock (about 40 ms per request): instrumentation **+1.1 ms**, with 10% sampling +0.5 ms, with full OTLP export **+1.9 ms**, throughput unchanged (0.99 to 1.01), a noise floor of **±0.4 ms** (an identical second `off` process: +0.07 ms). All within the revised 2.5 ms / 5% budget.
