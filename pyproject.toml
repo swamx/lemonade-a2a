@@ -60,6 +60,8 @@ packages = ["src/lemonade_a2a"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+# Only our tests: a checked-out TCK (a2a-tck/) or a virtualenv in the repo root must not be collected.
+testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = ["integration: needs a real Lemonade server (opt in with LEMONADE_INTEGRATION=1)"]
 

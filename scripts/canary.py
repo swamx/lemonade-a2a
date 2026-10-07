@@ -96,6 +96,7 @@ def canary(spec: str, work: Path, tck_dir: Path | None) -> dict:
             str(python),
             "-m",
             "pytest",
+            "tests",
             "-q",
             "-p",
             "no:cacheprovider",
