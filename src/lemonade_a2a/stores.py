@@ -113,20 +113,19 @@ class SqliteTaskStore(TaskStore):
         return task
 
     async def _trim(self) -> None:
-        from sqlalchemy import text
+        from sqlalchemy import bindparam, text
 
-        terminal = ", ".join(f"'{name}'" for name in _TERMINAL_NAMES)
+        # Values are bound (never formatted into the statement): the terminal states and the limit.
+        delete_oldest_finished = text(
+            "DELETE FROM tasks WHERE id IN (SELECT id FROM tasks "
+            "WHERE json_extract(status, '$.state') IN :states ORDER BY rowid ASC LIMIT :excess)"
+        ).bindparams(bindparam("states", expanding=True))
         async with self._engine.begin() as connection:
             count = (await connection.execute(text("SELECT COUNT(*) FROM tasks"))).scalar_one()
             excess = count - self.max_tasks
             if excess > 0:
                 result = await connection.execute(
-                    text(
-                        "DELETE FROM tasks WHERE id IN (SELECT id FROM tasks WHERE "
-                        f"json_extract(status, '$.state') IN ({terminal}) "
-                        "ORDER BY rowid ASC LIMIT :excess)"
-                    ),
-                    {"excess": excess},
+                    delete_oldest_finished, {"states": list(_TERMINAL_NAMES), "excess": excess}
                 )
                 for _ in range(result.rowcount or 0):
                     self.telemetry.eviction()

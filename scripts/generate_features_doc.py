@@ -36,16 +36,20 @@ def render() -> str:
     lines = [
         "# Feature registry",
         "",
-        "Generated from [`features.json`](../src/lemonade_a2a/spec/features.json) by "
-        "`scripts/generate_features_doc.py`; do not edit by hand. The same data is available "
-        "at runtime from `lemonade-a2a capabilities` and, when enabled, from the capabilities "
-        f"endpoint. Specification version {registry.registry()['spec_version']}; "
-        "see [specification.md](specification.md).",
+        (
+            "Generated from [`features.json`](../src/lemonade_a2a/spec/features.json) by "
+            "`scripts/generate_features_doc.py`; do not edit by hand. The same data is available "
+            "at runtime from `lemonade-a2a capabilities` and, when enabled, from the capabilities "
+            f"endpoint. Specification version {registry.registry()['spec_version']}; "
+            "see [specification.md](specification.md)."
+        ),
         "",
-        "**State**: `supported` works and has evidence; `unsupported` is deliberately not offered "
-        "(and is rejected, not ignored); `observed` is behaviour of a dependency the adapter relies "
-        "on or works around; `unknown` is not yet established. **Default** shows whether the feature "
-        "is in effect with no configuration. **Switch** is the setting that controls it.",
+        (
+            "**State**: `supported` works and has evidence; `unsupported` is deliberately not offered "
+            "(and is rejected, not ignored); `observed` is behaviour of a dependency the adapter relies "
+            "on or works around; `unknown` is not yet established. **Default** shows whether the feature "
+            "is in effect with no configuration. **Switch** is the setting that controls it."
+        ),
         "",
     ]
     for domain, (title, blurb) in DOMAINS.items():

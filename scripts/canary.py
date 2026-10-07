@@ -30,7 +30,10 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", **kwargs)
+    kwargs.setdefault("check", False)
+    return subprocess.run(  # noqa: PLW1510 - check is set through kwargs above
+        command, capture_output=True, text=True, encoding="utf-8", **kwargs
+    )
 
 
 def venv_python(directory: Path) -> Path:

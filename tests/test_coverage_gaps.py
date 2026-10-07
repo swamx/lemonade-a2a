@@ -406,7 +406,7 @@ def test_config_validate_prints_warnings(capsys, monkeypatch) -> None:
 
 def test_doctor_text_marks_every_verdict(capsys, monkeypatch) -> None:
     monkeypatch.setattr(
-        compat, "installed_version", lambda name: "1.2.2" if name == "a2a-sdk" else None
+        compat, "installed_version", lambda name: "1.2.99" if name == "a2a-sdk" else None
     )
 
     code = cli.main(["doctor", "--no-lemonade"])

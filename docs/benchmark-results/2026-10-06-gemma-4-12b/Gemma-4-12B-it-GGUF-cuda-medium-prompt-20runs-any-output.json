@@ -1,0 +1,87 @@
+{
+  "model": "Gemma-4-12B-it-GGUF",
+  "workload": "medium-prompt",
+  "prompt_words": 667,
+  "prompt": "Local inference keeps data on the device, removes network round trips and lets applications work offline, but it shares limited memory and compute between the model and everything else running on the ",
+  "runs": 20,
+  "cancellation": {
+    "result": "pass",
+    "state": "TASK_STATE_CANCELED",
+    "cancel_latency_ms": 18.497099983505905,
+    "task": "086fac15-900e-4c23-9a61-48d22cedde0d"
+  },
+  "adapter_footprint": {
+    "rss_mb": 98.361344,
+    "cpu_percent_idle": 0.0
+  },
+  "ttft_ms": {
+    "direct": {
+      "median": 18765.36819996545,
+      "p95": 26018.75119993929,
+      "min": 16086.637599975802,
+      "max": 26018.75119993929
+    },
+    "a2a": {
+      "median": 19085.668699990492,
+      "p95": 25763.76599993091,
+      "min": 13804.417800041847,
+      "max": 25763.76599993091
+    }
+  },
+  "total_ms": {
+    "direct": {
+      "median": 21531.7879000213,
+      "p95": 28997.86350002978,
+      "min": 19102.127199992537,
+      "max": 28997.86350002978
+    },
+    "a2a": {
+      "median": 21918.014299997594,
+      "p95": 28745.126799913123,
+      "min": 16157.782700029202,
+      "max": 28745.126799913123
+    }
+  },
+  "chunks_per_s": {
+    "direct": {
+      "median": 15.387631779923893,
+      "p95": 15.586192039839618,
+      "min": 15.228928380278916,
+      "max": 15.586192039839618
+    },
+    "a2a": {
+      "median": 15.42220488368655,
+      "p95": 15.7221687126373,
+      "min": 14.961332234857927,
+      "max": 15.7221687126373
+    }
+  },
+  "ttft_any_ms": {
+    "direct": {
+      "median": 588.6369500076398,
+      "p95": 606.0665000695735,
+      "min": 573.6509000416845,
+      "max": 606.0665000695735
+    },
+    "a2a": {
+      "median": 595.7419500336982,
+      "p95": 616.572399972938,
+      "min": 581.7664000205696,
+      "max": 616.572399972938
+    }
+  },
+  "think_chunks": {
+    "direct": {
+      "median": 291.0,
+      "p95": 406,
+      "min": 250,
+      "max": 406
+    },
+    "a2a": {
+      "median": 296.0,
+      "p95": 401,
+      "min": 212,
+      "max": 401
+    }
+  }
+}

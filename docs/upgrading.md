@@ -12,15 +12,15 @@ lemonade-a2a doctor
 
 `doctor` compares what is installed and reachable with what the project **tested**
 (`src/lemonade_a2a/spec/compat.json`, generated from CI results) and what each feature **needs**
-([features.md](features.md)). Example after pulling a newer SDK than the one the manifest lists:
+([features.md](features.md)). Example after pulling an SDK release newer than the ones the manifest lists (a hypothetical 1.2.3 here):
 
 ```text
 Installed components
   [ ok ] Python version: Python 3.11.7
   [ ok ] lemonade-a2a version: lemonade-a2a 0.1.0
-  [warn] a2a-sdk: a2a-sdk 1.2.2 is inside the declared range >=1.2.0,<1.3 but was not tested (tested: 1.2.1)
+  [warn] a2a-sdk: a2a-sdk 1.2.3 is inside the declared range >=1.2.0,<1.3 but was not tested (tested: 1.2.0, 1.2.1, 1.2.2)
          next: Run `lemonade-a2a doctor --deep` and the TCK, or pin a tested version.
-  [ ok ] Feature registry: 48 features
+  [ ok ] Feature registry: 49 features
   [ ok ] Configuration: profile local
 ```
 

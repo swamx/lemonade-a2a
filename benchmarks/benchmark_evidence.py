@@ -30,6 +30,8 @@ _PARAGRAPH = (
 )
 WORKLOADS = {
     "short": "Explain local AI in two sentences.",
+    # ~700 tokens: fits models Lemonade loads with a small context (Gemma-4-12B gets 1,459 on 8 GB).
+    "medium-prompt": _PARAGRAPH * 20 + "\n\nSummarize the text above in two sentences.",
     "long-prompt": _PARAGRAPH * 45 + "\n\nSummarize the text above in two sentences.",
     "long-output": "Write a detailed, well-structured explanation of about 400 words on how local AI inference works.",
 }
@@ -67,16 +69,29 @@ def summarize(values: list[float]) -> dict:
     }
 
 
-def timing(start: float, first: float | None, chunks: int, why: str = "") -> dict:
+def timing(
+    start: float,
+    first: float | None,
+    chunks: int,
+    why: str = "",
+    first_any: float | None = None,
+    think: int | None = None,
+) -> dict:
     end = time.perf_counter()
     if first is None:
         raise RuntimeError(f"stream produced no text chunks{(' (' + why + ')') if why else ''}")
-    return {
+    result = {
         "ttft_ms": (first - start) * 1000,
         "total_ms": (end - start) * 1000,
         "chunks": chunks,
         "chunks_per_s": (chunks - 1) / max(end - first, 1e-9) if chunks > 1 else 0.0,
     }
+    if first_any is not None:
+        # Time to the first output of ANY kind. For a reasoning model this excludes the random
+        # length of its thinking from the comparison, which dominates ``ttft_ms``.
+        result["ttft_any_ms"] = (first_any - start) * 1000
+        result["think_chunks"] = think or 0
+    return result
 
 
 async def direct_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> dict:
@@ -88,6 +103,7 @@ async def direct_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> 
     start = time.perf_counter()
     first = None
     chunks = reasoning = events = 0
+    first_any = None
     finish = error = None
     async with client.stream("POST", args.direct_url, json=payload) as response:
         response.raise_for_status()
@@ -98,17 +114,21 @@ async def direct_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> 
             finish = choice.get("finish_reason") or finish
             delta = choice.get("delta") or {}
             reasoning += bool(delta.get("reasoning_content"))
+            if delta.get("reasoning_content") or delta.get("content"):
+                first_any = first_any or time.perf_counter()
             if delta.get("content"):
                 chunks += 1
                 first = first or time.perf_counter()
     why = f"events={events}, reasoning_chunks={reasoning}, finish_reason={finish}, error={error}"
-    return timing(start, first, chunks, why)
+    return timing(start, first, chunks, why, first_any, reasoning)
 
 
 async def a2a_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> dict:
     start = time.perf_counter()
     first = None
-    chunks = 0
+    first_any = None
+    chunks = think = 0
+    status_note = ""
     async with client.stream(
         "POST",
         args.a2a_url,
@@ -119,11 +139,19 @@ async def a2a_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> dic
         async for event in sse_data(response):
             if "error" in event:
                 raise RuntimeError(json.dumps(event["error"]))
+            status = ((event.get("result") or {}).get("statusUpdate") or {}).get("status") or {}
+            if status.get("state") in ("TASK_STATE_FAILED", "TASK_STATE_REJECTED"):
+                parts = (status.get("message") or {}).get("parts") or [{}]
+                status_note = f"task {status['state']}: {parts[0].get('text', '')}"
             update = (event.get("result") or {}).get("artifactUpdate")
             if update and any(p.get("text") for p in update["artifact"].get("parts", [])):
-                chunks += 1
-                first = first or time.perf_counter()
-    return timing(start, first, chunks)
+                if update["artifact"].get("name") == "lemonade-reasoning":
+                    think += 1  # only present with LEMONADE_A2A_REASONING=artifact
+                else:
+                    chunks += 1
+                    first = first or time.perf_counter()
+                first_any = first_any or time.perf_counter()
+    return timing(start, first, chunks, status_note, first_any, think)
 
 
 async def cancellation_check(client: httpx.AsyncClient, args: argparse.Namespace) -> dict:
@@ -245,7 +273,10 @@ async def run(args: argparse.Namespace) -> dict:
     }
     if args.concurrency:
         report["load"] = await load_test(args)
-    for metric in ("ttft_ms", "total_ms", "chunks_per_s"):
+    metrics = ["ttft_ms", "total_ms", "chunks_per_s"]
+    if all("ttft_any_ms" in r for r in direct + a2a):
+        metrics += ["ttft_any_ms", "think_chunks"]
+    for metric in metrics:
         report[metric] = {
             "direct": summarize([r[metric] for r in direct]),
             "a2a": summarize([r[metric] for r in a2a]),
@@ -259,6 +290,9 @@ def to_markdown(report: dict) -> str:
         ("Total latency (ms)", "total_ms"),
         ("Chunks/sec", "chunks_per_s"),
     ]
+    if "ttft_any_ms" in report:
+        rows.insert(1, ("TTFT, first output of any kind (ms)", "ttft_any_ms"))
+        rows.append(("Reasoning chunks per run", "think_chunks"))
     lines = [
         f"Model: `{report['model']}` - {report['runs']} runs (median / p95)",
         "",

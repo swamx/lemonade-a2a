@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import sys
 import zipfile
 from datetime import UTC, datetime
@@ -240,10 +241,32 @@ def cmd_support_bundle(args: argparse.Namespace) -> int:
 # ----- serve / version ----------------------------------------------------------------------
 
 
+SDK_TRACING_VAR = "OTEL_INSTRUMENTATION_A2A_SDK_ENABLED"
+
+
+def default_sdk_tracing() -> bool:
+    """Turn the A2A SDK's own OpenTelemetry spans off unless the operator said otherwise.
+
+    The SDK wraps its request handling in tracing decorators that cost time on every request
+    *even when no telemetry is configured*, because the OpenTelemetry API is installed. Measured
+    on the mock backend: about 2-5 ms per request in a warm sequential benchmark and up to
+    about 16 ms for requests that arrive in bursts after idle (docs/benchmarks.md). The
+    adapter's own spans (request, task, Lemonade call) cover the same ground. The SDK reads the switch once, when it is first
+    imported, so this must run before ``lemonade_a2a.server`` is imported. Set
+    ``OTEL_INSTRUMENTATION_A2A_SDK_ENABLED=true`` to get the SDK's spans back (they carry the
+    JSON-RPC method names). Returns whether the default was applied.
+    """
+    if SDK_TRACING_VAR in os.environ:
+        return False
+    os.environ[SDK_TRACING_VAR] = "false"
+    return True
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
+    settings, _ = _load(args)
+    default_sdk_tracing()
     from .server import serve
 
-    settings, _ = _load(args)
     serve(settings)
     return 0
 

@@ -121,12 +121,44 @@ def test_adapter_version_mismatch_is_a_warning() -> None:
     assert compat.check_adapter({"adapter": {}}).verdict == PASS
 
 
-def test_shipped_manifest_passes_the_local_checks_on_this_machine() -> None:
+def test_the_shipped_manifest_is_consistent() -> None:
+    """What the project claims must hang together: tested versions are inside the declared range
+    and not known broken, and the manifest was generated for this adapter version."""
+    from packaging.specifiers import SpecifierSet
+    from packaging.version import Version
+
+    manifest = registry.manifest()
+    declared = SpecifierSet(manifest["a2a_sdk"]["declared"])
+
+    assert manifest["a2a_sdk"]["tested"], "no tested a2a-sdk version"
+    for version in manifest["a2a_sdk"]["tested"]:
+        assert Version(version) in declared, f"{version} is tested but outside {declared}"
+        for broken in manifest["a2a_sdk"].get("known_broken", []):
+            assert Version(version) not in SpecifierSet(broken["range"]), (
+                f"{version} is also known broken"
+            )
+    assert manifest["adapter"]["version"] == __import__("lemonade_a2a").__version__
+    assert (
+        manifest["lemonade"]["minimum"] in manifest["lemonade"]["tested"]
+        or manifest["lemonade"]["tested"]
+    )
+
+
+def test_local_checks_pass_for_a_covered_install(covered_manifest) -> None:
     checks = compat.local_checks(Settings())
 
-    assert [c.verdict for c in checks if c.verdict != PASS] == [], [
-        c for c in checks if c.verdict != PASS
-    ]
+    assert [c for c in checks if c.verdict != PASS] == []
+
+
+def test_an_uncovered_sdk_is_a_warning_not_a_failure(monkeypatch) -> None:
+    """The case the canary exposed: a valid SDK the manifest has not tested yet."""
+    monkeypatch.setattr(
+        compat, "installed_version", lambda name: "1.2.99" if name == "a2a-sdk" else None
+    )
+
+    check = compat.check_sdk(registry.manifest())
+
+    assert check.verdict == WARN and "not tested" in check.detail
 
 
 def test_telemetry_check_fails_when_the_extra_is_missing(monkeypatch) -> None:
@@ -336,7 +368,7 @@ def test_config_schema_is_valid_json(capsys) -> None:
     assert code == 0 and json.loads(out)["title"] == "lemonade-a2a settings"
 
 
-def test_doctor_without_lemonade(capsys) -> None:
+def test_doctor_without_lemonade(capsys, covered_manifest) -> None:
     code, out, _ = _run(capsys, "doctor", "--no-lemonade", "--json")
 
     report = json.loads(out)
@@ -344,7 +376,7 @@ def test_doctor_without_lemonade(capsys) -> None:
     assert {"python", "a2a_sdk", "registry", "config"} <= {c["id"] for c in report["checks"]}
 
 
-def test_doctor_text_output_ends_with_a_verdict(capsys) -> None:
+def test_doctor_text_output_ends_with_a_verdict(capsys, covered_manifest) -> None:
     code, out, _ = _run(capsys, "doctor", "--no-lemonade", "--sdk-gap")
 
     assert code == 0
@@ -352,7 +384,9 @@ def test_doctor_text_output_ends_with_a_verdict(capsys) -> None:
     assert "beyond what the adapter uses" in out
 
 
-def test_doctor_json_with_backend_and_adapter(capsys, lemonade, monkeypatch) -> None:
+def test_doctor_json_with_backend_and_adapter(
+    capsys, lemonade, monkeypatch, covered_manifest
+) -> None:
     monkeypatch.setenv("LEMONADE_BASE_URL", lemonade.lemonade_base_url)
     monkeypatch.setenv("LEMONADE_MODEL", "mock-model")
     with live_adapter() as base:
@@ -484,7 +518,7 @@ def test_off_mode_does_not_look(broken_manifest, caplog) -> None:
     assert caplog.text == ""
 
 
-def test_a_clean_install_starts_in_strict_mode() -> None:
+def test_a_clean_install_starts_in_strict_mode(covered_manifest) -> None:
     startup_gate(Settings(compat="strict"))
 
 
@@ -623,3 +657,29 @@ def test_a_selected_plugin_that_is_not_installed_fails(installed) -> None:
 
 def test_no_plugins_means_no_noise() -> None:
     assert compat.check_plugins(Settings()) == []
+
+
+# --- the SDK's own tracing is off by default in `serve` ---------------------------------------------------
+
+
+def test_serve_turns_the_sdk_spans_off_unless_told_otherwise(monkeypatch) -> None:
+    monkeypatch.delenv(cli.SDK_TRACING_VAR, raising=False)
+    monkeypatch.setattr("lemonade_a2a.server.serve", lambda settings: None)
+
+    cli.main(["serve"])
+
+    assert cli.os.environ[cli.SDK_TRACING_VAR] == "false"
+
+
+def test_an_explicit_choice_is_never_overridden(monkeypatch) -> None:
+    monkeypatch.setenv(cli.SDK_TRACING_VAR, "true")
+
+    assert cli.default_sdk_tracing() is False
+    assert cli.os.environ[cli.SDK_TRACING_VAR] == "true"
+
+
+def test_the_default_is_applied_once_per_process(monkeypatch) -> None:
+    monkeypatch.delenv(cli.SDK_TRACING_VAR, raising=False)
+
+    assert cli.default_sdk_tracing() is True
+    assert cli.default_sdk_tracing() is False

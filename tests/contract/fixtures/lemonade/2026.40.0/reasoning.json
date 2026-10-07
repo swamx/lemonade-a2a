@@ -1,0 +1,7 @@
+{
+  "answer": "The sky is blue because molecules in the atmosphere scatter shorter blue wavelengths of sunlight more than other colors.",
+  "reasoning": "*   Question: Why is the sky blue?\n    *   Constraint: One short sentence.\n\n    *   Sunlight hits the atmosphere.\n    *   Gas molecules and small particles scatter sunlight.\n    *   Short wavelengths (blue/violet) scatter more easily than long wavelengths (red/yellow).\n    *   This phenomenon is called Rayleigh scattering.\n\n    *   *Draft 1:* The sky is blue because of Rayleigh scattering, where shorter blue wavelengths of sunlight are scattered more by the atmosphere's gases. (A bit long)\n    *   *Draft 2:* Sunlight scatters off air molecules, and since blue light travels in shorter waves, it scatters more than other colors. (Still a bit long)\n    *   *Draft 3:* The sky is blue because gas molecules in the atmosphere scatter shorter blue light waves more than other colors. (Good)\n    *   *Draft 4:* Rayleigh scattering causes blue light to scatter more easily through the atmosphere than other colors. (Strong)\n    *   *Draft 5:* Sunlight scatters off gas molecules in the atmosphere, and blue light scatters more than other colors. (Simple)\n\n    *   \"The sky is blue because molecules in the atmosphere scatter shorter blue wavelengths of sunlight more than other colors.\"\n\n    *   One sentence? Yes.\n    *   Short? Yes.\n    *   Accurate? Yes.",
+  "usage": null,
+  "outcome": "completed",
+  "recorded": "real Lemonade 2026.40.0, model Gemma-4-12B-it-GGUF"
+}
