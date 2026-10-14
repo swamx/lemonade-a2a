@@ -1,9 +1,15 @@
 """Evidence benchmark: direct Lemonade vs A2A -> Lemonade.
 
-Measures time-to-first-token (TTFT), total latency, streamed chunks/sec and
-cancellation, then writes a JSON report and prints a Markdown table. Run a
-Lemonade server and lemonade-a2a against the same model. Chunk rate is a proxy
-for tokens/sec: servers may batch several tokens per SSE chunk.
+Measures time-to-first-token (TTFT), total latency, throughput and cancellation,
+then writes a JSON report and prints a Markdown table. Run a Lemonade server and
+lemonade-a2a against the same model.
+
+Two throughputs are reported and they mean different things. ``chunks_per_s`` is a
+*transport* metric: it counts stream events, and where the events split the text
+depends on the server and the SSE/A2A framing, not on the model. ``tokens_per_s``
+is the *output* metric: tokens of the assembled answer, counted with the same
+tokenizer for both paths (``--tokenizer``). Reasoning output is tracked apart from
+the answer (see ``stream_metrics.py``).
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ import uuid
 from pathlib import Path
 
 import httpx
+from stream_metrics import StreamTally, get_tokenizer
 
 A2A_HEADERS = {"A2A-Version": "1.0"}
 
@@ -69,29 +76,8 @@ def summarize(values: list[float]) -> dict:
     }
 
 
-def timing(
-    start: float,
-    first: float | None,
-    chunks: int,
-    why: str = "",
-    first_any: float | None = None,
-    think: int | None = None,
-) -> dict:
-    end = time.perf_counter()
-    if first is None:
-        raise RuntimeError(f"stream produced no text chunks{(' (' + why + ')') if why else ''}")
-    result = {
-        "ttft_ms": (first - start) * 1000,
-        "total_ms": (end - start) * 1000,
-        "chunks": chunks,
-        "chunks_per_s": (chunks - 1) / max(end - first, 1e-9) if chunks > 1 else 0.0,
-    }
-    if first_any is not None:
-        # Time to the first output of ANY kind. For a reasoning model this excludes the random
-        # length of its thinking from the comparison, which dominates ``ttft_ms``.
-        result["ttft_any_ms"] = (first_any - start) * 1000
-        result["think_chunks"] = think or 0
-    return result
+def _tally(args: argparse.Namespace) -> StreamTally:
+    return StreamTally(get_tokenizer(getattr(args, "tokenizer", "regex")))
 
 
 async def direct_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> dict:
@@ -100,10 +86,8 @@ async def direct_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> 
         "messages": [{"role": "user", "content": args.prompt}],
         "stream": True,
     }
-    start = time.perf_counter()
-    first = None
-    chunks = reasoning = events = 0
-    first_any = None
+    tally = _tally(args)
+    events = 0
     finish = error = None
     async with client.stream("POST", args.direct_url, json=payload) as response:
         response.raise_for_status()
@@ -113,21 +97,17 @@ async def direct_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> 
             choice = (event.get("choices") or [{}])[0]
             finish = choice.get("finish_reason") or finish
             delta = choice.get("delta") or {}
-            reasoning += bool(delta.get("reasoning_content"))
-            if delta.get("reasoning_content") or delta.get("content"):
-                first_any = first_any or time.perf_counter()
-            if delta.get("content"):
-                chunks += 1
-                first = first or time.perf_counter()
-    why = f"events={events}, reasoning_chunks={reasoning}, finish_reason={finish}, error={error}"
-    return timing(start, first, chunks, why, first_any, reasoning)
+            tally.add("reasoning", delta.get("reasoning_content") or "")
+            tally.add("answer", delta.get("content") or "")
+    why = (
+        f"events={events}, reasoning_chunks={len(tally.reasoning)}, "
+        f"finish_reason={finish}, error={error}"
+    )
+    return tally.result(why)
 
 
 async def a2a_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> dict:
-    start = time.perf_counter()
-    first = None
-    first_any = None
-    chunks = think = 0
+    tally = _tally(args)
     status_note = ""
     async with client.stream(
         "POST",
@@ -144,14 +124,12 @@ async def a2a_stream(client: httpx.AsyncClient, args: argparse.Namespace) -> dic
                 parts = (status.get("message") or {}).get("parts") or [{}]
                 status_note = f"task {status['state']}: {parts[0].get('text', '')}"
             update = (event.get("result") or {}).get("artifactUpdate")
-            if update and any(p.get("text") for p in update["artifact"].get("parts", [])):
-                if update["artifact"].get("name") == "lemonade-reasoning":
-                    think += 1  # only present with LEMONADE_A2A_REASONING=artifact
-                else:
-                    chunks += 1
-                    first = first or time.perf_counter()
-                first_any = first_any or time.perf_counter()
-    return timing(start, first, chunks, status_note, first_any, think)
+            if update:
+                artifact = update["artifact"]
+                # The reasoning artifact only exists with LEMONADE_A2A_REASONING=artifact.
+                kind = "reasoning" if artifact.get("name") == "lemonade-reasoning" else "answer"
+                tally.add(kind, "".join(p.get("text") or "" for p in artifact.get("parts", [])))
+    return tally.result(status_note)
 
 
 async def cancellation_check(client: httpx.AsyncClient, args: argparse.Namespace) -> dict:
@@ -273,9 +251,13 @@ async def run(args: argparse.Namespace) -> dict:
     }
     if args.concurrency:
         report["load"] = await load_test(args)
-    metrics = ["ttft_ms", "total_ms", "chunks_per_s"]
+    report["tokenizer"] = getattr(args, "tokenizer", "regex")
+    metrics = ["ttft_ms", "total_ms", "chunks_per_s", "output_tokens", "tokens_per_s"]
     if all("ttft_any_ms" in r for r in direct + a2a):
         metrics += ["ttft_any_ms", "think_chunks"]
+    if all("ttft_reasoning_ms" in r for r in direct + a2a):
+        # Only when both paths surfaced reasoning (the adapter needs LEMONADE_A2A_REASONING=artifact).
+        metrics.append("ttft_reasoning_ms")
     for metric in metrics:
         report[metric] = {
             "direct": summarize([r[metric] for r in direct]),
@@ -288,11 +270,18 @@ def to_markdown(report: dict) -> str:
     rows = [
         ("TTFT (ms)", "ttft_ms"),
         ("Total latency (ms)", "total_ms"),
-        ("Chunks/sec", "chunks_per_s"),
+        ("Chunks/sec (transport)", "chunks_per_s"),
     ]
+    if "tokens_per_s" in report:
+        rows += [
+            ("Output tokens per run", "output_tokens"),
+            ("Output tokens/sec", "tokens_per_s"),
+        ]
     if "ttft_any_ms" in report:
         rows.insert(1, ("TTFT, first output of any kind (ms)", "ttft_any_ms"))
         rows.append(("Reasoning chunks per run", "think_chunks"))
+    if "ttft_reasoning_ms" in report:
+        rows.insert(1, ("TTFT, first reasoning output (ms)", "ttft_reasoning_ms"))
     lines = [
         f"Model: `{report['model']}` - {report['runs']} runs (median / p95)",
         "",
@@ -354,9 +343,18 @@ def main() -> None:
         help="comma-separated concurrency levels for the load test, e.g. 1,2,4,8",
     )
     parser.add_argument("--load-rounds", type=int, default=3)
+    parser.add_argument(
+        "--tokenizer",
+        default="regex",
+        help="tokenizer for output tokens: 'regex' (no dependency) or 'tiktoken:<encoding>'",
+    )
     parser.add_argument("--output", type=Path, default=Path("benchmark-report.json"))
     args = parser.parse_args()
     args.prompt = args.prompt or WORKLOADS[args.workload]
+    try:
+        get_tokenizer(args.tokenizer)
+    except ValueError as error:
+        parser.error(str(error))
     if not args.model:
         parser.error("--model is required unless LEMONADE_MODEL is set")
     if args.runs < 1 or args.warmup < 0:

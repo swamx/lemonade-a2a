@@ -6,6 +6,8 @@ First release of the Python reference adapter: an A2A 1.0 protocol surface in fr
 
 ### What is in it
 
+- **Benchmarks separate transport from output**: `chunks_per_s` is now labelled a transport metric, and the report adds `output_tokens` and `tokens_per_s` (assembled answer, one tokenizer for both paths, `--tokenizer`), plus `ttft_reasoning_ms` so first reasoning output and first user-visible answer are recorded separately. `check_budget.py` and `telemetry_overhead.py` gate throughput on tokens/s. Regression tests send the same text as one event and as many events. Suggested by an outside reviewer.
+
 - **A2A 1.0** Agent Card, JSON-RPC and HTTP+JSON (served at the base URL; legacy `/a2a/jsonrpc` and `/a2a/rest` kept), SSE streaming, task lifecycle, cancellation and error mapping.
 - **Cancellation reaches the backend**: `CancelTask` stops generation on the real Lemonade server.
 - **Failure handling**: backend errors, timeouts and bad input become well-formed A2A errors or `FAILED`/`REJECTED` tasks with sanitized messages.

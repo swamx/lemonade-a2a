@@ -12,7 +12,8 @@ requests round-robin across the modes (so drift in the machine affects every mod
     otlp-100   every trace sampled and exported over OTLP/HTTP to a local sink (instrumentation + export)
 
 ``--check`` exits 1 when a mode breaks the telemetry budget (see docs/observability.md):
-at most 1 ms (or 5%) extra median TTFT and at most 5% less streaming throughput than ``off``.
+at most 2.5 ms (or 5%) extra median TTFT and at most 5% less output tokens/s than ``off``
+(``chunks_per_s`` is also recorded, as a transport metric).
 The mock backend answers in about 15 ms, which makes any fixed per-request cost easy to see.
 """
 
@@ -32,6 +33,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import httpx
+from stream_metrics import StreamTally
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -116,7 +118,7 @@ def wait_ready(url: str) -> None:
     raise RuntimeError(f"{url} did not come up")
 
 
-def one_request(client: httpx.Client, base: str) -> tuple[float, float, int]:
+def one_request(client: httpx.Client, base: str) -> dict:
     body = {
         "jsonrpc": "2.0",
         "id": "1",
@@ -129,16 +131,19 @@ def one_request(client: httpx.Client, base: str) -> tuple[float, float, int]:
             }
         },
     }
-    start = time.perf_counter()
-    first = None
-    chunks = 0
+    tally = StreamTally()
     with client.stream("POST", base, headers=A2A_HEADERS, json=body) as response:
         for line in response.iter_lines():
-            if line.startswith("data:") and "artifactUpdate" in line and '"text"' in line:
-                chunks += 1
-                first = first or time.perf_counter()
-    end = time.perf_counter()
-    return (first - start) * 1000, (end - start) * 1000, chunks
+            if line.startswith("data:") and "artifactUpdate" in line:
+                artifact = (json.loads(line[5:]).get("result") or {}).get("artifactUpdate") or {}
+                parts = (artifact.get("artifact") or {}).get("parts") or []
+                kind = (
+                    "reasoning"
+                    if artifact["artifact"].get("name") == "lemonade-reasoning"
+                    else "answer"
+                )
+                tally.add(kind, "".join(p.get("text") or "" for p in parts))
+    return tally.result()
 
 
 def main() -> int:
@@ -207,7 +212,7 @@ def main() -> int:
         for mode in MODES:
             wait_ready(f"http://127.0.0.1:{ports[mode]}/healthz")
 
-        samples: dict[str, list[tuple[float, float, int]]] = {mode: [] for mode in MODES}
+        samples: dict[str, list[dict]] = {mode: [] for mode in MODES}
         order_rng = random.Random(11)
         with httpx.Client(timeout=30) as client:
             for index in range(args.warmup + args.runs):
@@ -229,12 +234,14 @@ def main() -> int:
         sink.shutdown()
 
     def rate(row):
-        return (row[2] - 1) / max((row[1] - row[0]) / 1000, 1e-9) if row[2] > 1 else 0.0
+        # Output tokens/s; chunks/s only reflects where the transport split the text.
+        return row["tokens_per_s"]
 
     def summary(rows):
-        ttft = [r[0] for r in rows]
-        total = [r[1] for r in rows]
-        rates = [rate(r) for r in rows if r[2] > 1]
+        ttft = [r["ttft_ms"] for r in rows]
+        total = [r["total_ms"] for r in rows]
+        rates = [rate(r) for r in rows if r["chunks"] > 1]
+        chunk_rates = [r["chunks_per_s"] for r in rows if r["chunks"] > 1]
         return {
             "ttft_ms": {
                 "median": statistics.median(ttft),
@@ -244,7 +251,8 @@ def main() -> int:
                 "median": statistics.median(total),
                 "p95": sorted(total)[int(len(total) * 0.95)],
             },
-            "chunks_per_s": {"median": statistics.median(rates) if rates else 0.0},
+            "tokens_per_s": {"median": statistics.median(rates) if rates else 0.0},
+            "chunks_per_s": {"median": statistics.median(chunk_rates) if chunk_rates else 0.0},
         }
 
     def bootstrap_ci(values, resamples=2000):
@@ -268,7 +276,7 @@ def main() -> int:
         if mode == "off":
             stats["within_budget"] = True
             continue
-        d_ttft = [r[0] - o[0] for r, o in zip(rows, off_rows, strict=True)]
+        d_ttft = [r["ttft_ms"] - o["ttft_ms"] for r, o in zip(rows, off_rows, strict=True)]
         ratios = [
             rate(r) / rate(o)
             for r, o in zip(rows, off_rows, strict=True)

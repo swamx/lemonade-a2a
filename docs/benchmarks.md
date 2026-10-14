@@ -6,7 +6,10 @@
 |---|---|
 | TTFT | request start to first text chunk (direct SSE delta vs A2A `artifactUpdate`) |
 | Total latency | request start to end of stream |
-| Chunks/sec | streamed text chunks per second after the first (proxy for tokens/sec) |
+| Chunks/sec | **Transport** metric: streamed answer events per second after the first. Where a server or the adapter splits the text changes this number without changing the generated text, so it is not a model-speed figure |
+| Output tokens, tokens/sec | **Output** metric: tokens of the assembled answer, counted with one tokenizer (`--tokenizer`, default a dependency-free `regex` approximation, or `tiktoken:<encoding>`) applied identically to the direct and A2A paths; the rate covers the tokens after the first answer event, over the same window as chunks/sec |
+| TTFT, first reasoning output | request start to the first `reasoning_content` event (direct) or `lemonade-reasoning` artifact (A2A, needs `LEMONADE_A2A_REASONING=artifact`); reported only when both paths surfaced reasoning |
+| TTFT (above) | always the first **user-visible answer**; reasoning events are never counted as answer events or answer tokens |
 | Cancellation | start a stream, `CancelTask` after the first chunk, expect `TASK_STATE_CANCELED` |
 | Adapter RSS / idle CPU | optional, via `--a2a-pid` and `psutil` |
 
@@ -157,9 +160,13 @@ Raw reports: [benchmark-results/matrix-v2/](benchmark-results/matrix-v2/). Media
 |---|---|
 | TTFT overhead | max(25 ms, 25% of direct TTFT) |
 | Total-latency overhead | max(50 ms, 5% of direct total) |
-| Streaming throughput | at least 90% of direct chunks/s |
+| Streaming throughput | at least 90% of direct output tokens/s (chunks/s for reports that predate `tokens_per_s`) |
 | Adapter resident memory | at most 100 MB |
 | Adapter idle CPU | at most 2% |
+
+Reports written before `tokens_per_s` existed (everything in `benchmark-results/` dated 2026-10-04 to 2026-10-07) only have the chunk figures, which are transport measurements; they are scored on chunks/s and are not re-measured. Re-run a cell to get output tokens/s.
+
+Regression fixture: `tests/test_benchmark_metrics.py` sends identical text as one event and as many events through both stream parsers and asserts the assembled output and token count are identical while the chunk count differs, so the confound cannot return unnoticed.
 
 Reports with fewer than 20 runs are scored but only *indicative*: laptop run-to-run noise is tens of milliseconds, larger than the budget floors.
 
