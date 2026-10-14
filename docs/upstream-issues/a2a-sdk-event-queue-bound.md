@@ -1,8 +1,7 @@
 # Draft upstream issue: make the per-task event queue size configurable in the v2 request handler
 
-**Not filed.** Draft for the repository owner to review and, if they agree, post at
-https://github.com/a2aproject/a2a-python/issues. Found while building slow-consumer backpressure tests
-for lemonade-a2a against `a2a-sdk` 1.2.1 and 1.2.2 (see `tests/test_live_lifecycle.py` and the P1 roadmap).
+**Filed 2026-10-14** as https://github.com/a2aproject/a2a-python/issues/1339 (this file is the original draft).
+Found while building slow-consumer backpressure tests for lemonade-a2a against `a2a-sdk` 1.2.1 and 1.2.2 (see `tests/test_live_lifecycle.py` and the P1 roadmap).
 
 ---
 
