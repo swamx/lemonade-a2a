@@ -1,0 +1,37 @@
+name: Compatibility report
+description: Tell us it works (or does not) with a Lemonade, a2a-sdk or hardware combination we have not tested
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The compatibility manifest only lists what the project has tested. Reports like this extend it, and
+        the NPU, ROCm, Metal and non-llama.cpp results are exactly the ones we cannot produce ourselves.
+        Run `lemonade-a2a doctor --deep --json` (and `python scripts/validate_real_lemonade.py` if you can).
+  - type: input
+    id: lemonade
+    attributes:
+      label: Lemonade Server version and backend
+      placeholder: e.g. 2026.40.0, llama.cpp ROCm / Vulkan / CPU, FastFlowLM NPU
+    validations:
+      required: true
+  - type: input
+    id: sdk
+    attributes:
+      label: a2a-sdk version
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: [Works, Works with warnings, Does not work]
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`lemonade-a2a doctor --deep --json` output"
+      render: json
+    validations:
+      required: true

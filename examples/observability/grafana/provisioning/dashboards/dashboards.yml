@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: lemonade-a2a
+    folder: Lemonade
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

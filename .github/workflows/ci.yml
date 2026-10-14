@@ -39,6 +39,8 @@ jobs:
         run: ruff check .
       - name: Ruff format
         run: ruff format --check .
+      - name: Feature documentation is generated from the registry
+        run: python scripts/generate_features_doc.py --check
       - name: Tests
         run: pytest -q
 
@@ -79,3 +81,47 @@ jobs:
           name: coverage-xml
           path: coverage.xml
           if-no-files-found: ignore
+
+  # Not a required check yet. Builds the wheel and sdist, then installs the wheel alone into a clean
+  # environment (no source tree on the path) and exercises the commands a user runs after an upgrade.
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+          ls -l dist
+      - name: The wheel carries the specification data
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          for needed in ("lemonade_a2a/spec/features.json", "lemonade_a2a/spec/compat.json",
+                         "lemonade_a2a/spec/features.schema.json", "lemonade_a2a/cli.py"):
+              assert needed in names, needed
+          print("wheel contents ok")
+          PY
+      - name: Install the wheel alone, with extras, into a clean environment
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install --quiet "$(ls dist/*.whl)[otel,sqlite]"
+      - name: What a user runs after `pip install -U`
+        working-directory: /tmp
+        run: |
+          /tmp/clean/bin/lemonade-a2a version
+          /tmp/clean/bin/lemonade-a2a capabilities | head -20
+          /tmp/clean/bin/lemonade-a2a doctor --no-lemonade --sdk-gap
+          /tmp/clean/bin/lemonade-a2a config validate
+          /tmp/clean/bin/lemonade-a2a support-bundle --output /tmp/bundle.zip
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/

@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # Metrics pushed over OTLP and re-exposed by the collector.
+  - job_name: lemonade-a2a-otlp
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # Alternative without a collector: start the adapter with LEMONADE_A2A_OTEL_PROMETHEUS=1 and
+  # scrape its authenticated /metrics endpoint (set the key you gave LEMONADE_A2A_API_KEY).
+  # - job_name: lemonade-a2a-direct
+  #   metrics_path: /metrics
+  #   authorization:
+  #     type: Bearer
+  #     credentials: change-me
+  #   static_configs:
+  #     - targets: ["host.docker.internal:9100"]
+
+  # Lemonade Server exposes its own /metrics; scraping it next to the adapter lets you compare
+  # the adapter's view (A2A requests) with the server's view (generation).
+  - job_name: lemonade-server
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:13305"]

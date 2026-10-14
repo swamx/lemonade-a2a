@@ -63,6 +63,10 @@ Maps Lemonade SSE deltas into A2A streaming events while preserving ordering and
 | `middleware.py` | Authentication (named API keys → user), rate limiting, body-size limit, UTF-8 and content-type checks, client-disconnect signal, security headers |
 | `call_context.py` | Builds the A2A call context: the authenticated user (task owner) and the disconnect event |
 | `safe_urls.py` | Tested SSRF policy that must gate any future URL fetch or push-notification callback; unused while those features are off |
+| `telemetry.py`, `logging_setup.py` | OpenTelemetry facade (no-op when off) with lazy SDK setup, and JSON logging with trace ids ([observability.md](observability.md)) |
+| `registry.py`, `spec/` | The feature registry and compatibility manifest (JSON, shipped in the wheel) and the code that reads and resolves them ([specification.md](specification.md)) |
+| `compat.py`, `sdk_gap.py`, `cli.py` | `doctor` checks and probes, the SDK-gap report, and the `lemonade-a2a` command (`serve`, `doctor`, `capabilities`, `config`, `support-bundle`) |
+| `plugins.py`, `builtin.py`, `stores.py` | Extension API v1 (discovery, loading, version check), the built-in implementations of each extension point, and the persistent SQLite task store ([extending.md](extending.md)) |
 | `executor.py` | A2A `AgentExecutor`: input validation, Task/Artifact events, cancellation, backend-error to `FAILED` mapping |
 | `lemonade_client.py` | Pooled OpenAI-compatible client (`chat`, SSE `stream`); no A2A types |
 | `task_store.py` | `BoundedTaskStore`: in-memory store evicting the oldest finished tasks |

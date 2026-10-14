@@ -1,0 +1,39 @@
+# Receives OTLP from the adapter; sends traces to Jaeger and exposes metrics for Prometheus.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+  batch: {}
+  # Belt and braces for the privacy modes: drop anything that looks like prompt text even if an
+  # operator turned LEMONADE_A2A_OTEL_CAPTURE=content on by mistake.
+  attributes/no-content:
+    actions:
+      - key: content
+        action: delete
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/no-content, batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]

@@ -1,0 +1,44 @@
+groups:
+  - name: lemonade-a2a
+    rules:
+      - alert: LemonadeBackendDown
+        expr: lemonade_a2a_backend_up == 0
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: The adapter cannot reach Lemonade
+          description: The last Lemonade request failed and none has succeeded for 2 minutes.
+
+      - alert: TaskFailureRatioHigh
+        expr: |
+          sum(rate(lemonade_a2a_task_completed_total{state="failed"}[10m]))
+            / clamp_min(sum(rate(lemonade_a2a_task_completed_total[10m])), 0.001) > 0.2
+        for: 10m
+        labels: {severity: warn}
+        annotations:
+          summary: More than 20% of tasks are failing
+
+      - alert: TimeToFirstTokenRegression
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(lemonade_a2a_stream_ttft_seconds_bucket[15m]))) > 5
+        for: 15m
+        labels: {severity: warn}
+        annotations:
+          summary: p95 time to first token is above 5 s
+          description: Check the model size, the loaded context and whether another client is using Lemonade (it serves one request at a time).
+
+      - alert: RequestsBeingRejected
+        expr: sum by (reason) (rate(lemonade_a2a_task_rejected_total[10m])) > 0.1
+        for: 10m
+        labels: {severity: warn}
+        annotations:
+          summary: "Requests rejected ({{ $labels.reason }})"
+          description: concurrency means the cap is too low or Lemonade is saturated; auth or rate_limit may be an attack or a misconfigured client.
+
+      - alert: CompatibilityChecksFailing
+        expr: lemonade_a2a_compat_status >= 2
+        for: 1m
+        labels: {severity: warn}
+        annotations:
+          summary: Startup compatibility checks failed
+          description: Run `lemonade-a2a doctor` on the host.

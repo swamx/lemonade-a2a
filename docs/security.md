@@ -55,6 +55,12 @@ The safest default is:
 | Fuzzing of messages, parts, metadata, queries, raw bytes and backend stream lines | Implemented (`tests/test_fuzz.py`, property-based) |
 | OAuth 2.0 / OpenID Connect token validation | **Not implemented, by decision**: terminate OIDC at a gateway (see [Identity](#identity-and-oauth)) |
 | Prompt/content logging | Not performed; failure logs contain exception summaries only |
+| OpenTelemetry privacy modes (`LEMONADE_A2A_OTEL_CAPTURE` `none` / `metadata` / `content`): off by default; `none` and `metadata` export nothing derived from prompts (property-tested); the `external` profile refuses `content` and plaintext remote OTLP | Implemented ([observability.md](observability.md)) |
+| `/metrics` (`LEMONADE_A2A_OTEL_PROMETHEUS`) and the capabilities endpoint (`LEMONADE_A2A_EXPOSE_CAPABILITIES`): both **off by default** and **authenticated** like every non-discovery route (version and configuration disclosure helps attackers) | Implemented |
+| Persistent tasks (`LEMONADE_A2A_TASK_STORE=sqlite`): the task database is created owner-only (0600) on POSIX; **it contains prompts and answers**, so protect and rotate it like any data store; owners stay separate; the oldest finished tasks are deleted past `LEMONADE_A2A_MAX_STORED_TASKS` | Implemented |
+| Plugins (`lemonade_a2a.*` entry points): a plugin runs with the adapter's privileges and must be trusted like any dependency; an authenticator that raises denies the request; a plugin built for another extension API version is refused | Implemented ([extending.md](extending.md)) |
+| Compatibility gate (`LEMONADE_A2A_COMPAT=strict`): refuses to start on an untested or broken component combination | Implemented ([upgrading.md](upgrading.md)) |
+| `support-bundle`: secrets and the home directory are redacted before anything is written; read it before sharing | Implemented |
 
 ## Exposure profiles
 

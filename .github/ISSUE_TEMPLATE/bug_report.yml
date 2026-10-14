@@ -1,0 +1,37 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Two commands answer most of our first questions, and both are local and
+        read-only; they redact secrets and never include prompts or responses.
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`lemonade-a2a doctor --json` output"
+      description: Paste the output (add `--deep` if Lemonade is running and a model is configured).
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got. Include the exact request or client if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: bundle
+    attributes:
+      label: Support bundle (optional)
+      description: |
+        Run `lemonade-a2a support-bundle`, read the zip, and attach it if you are comfortable sharing it.
+        It contains versions, the effective configuration with secrets redacted, doctor output and the tail of
+        the adapter log if you passed `--log`.
+  - type: input
+    id: client
+    attributes:
+      label: A2A client (name and version)
+      placeholder: e.g. a2a CLI 0.3.0, @a2a-js/sdk 1.3.0, a2a-java 1.4.0

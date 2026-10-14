@@ -30,6 +30,31 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/v1/health")
+async def health() -> dict:
+    """Shaped like Lemonade Server 2026.40 (version and status are what ``doctor`` reads)."""
+    return {
+        "status": "ok",
+        "version": os.environ.get("MOCK_LEMONADE_VERSION", "2026.40.0"),
+        "model_loaded": None,
+        "all_models_loaded": [],
+    }
+
+
+@app.get("/api/v1/system-info")
+async def system_info() -> dict:
+    return {"OS Version": "MockOS", "devices": {"cpu": {"available": True}}}
+
+
+@app.get("/v1/models")
+async def models() -> dict:
+    context = int(os.environ.get("MOCK_LEMONADE_CONTEXT", "32768"))
+    return {
+        "object": "list",
+        "data": [{"id": "mock-model", "object": "model", "context_length": context}],
+    }
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     payload = await request.json()
@@ -56,6 +81,16 @@ async def chat_completions(request: Request):
         )
 
     async def events():
+        if os.environ.get("MOCK_LEMONADE_ERROR"):
+            # What real Lemonade does for a prompt longer than the loaded context: an error
+            # event inside an HTTP 200 stream.
+            error = {
+                "code": 400,
+                "type": os.environ["MOCK_LEMONADE_ERROR"],
+                "message": "request (1647 tokens) exceeds the available context size (1536 tokens)",
+            }
+            yield f"data: {json.dumps({'error': error})}\n\n"
+            return
         count = int(os.environ.get("MOCK_LEMONADE_TOKEN_COUNT", "0"))
         if override is not None:
             tokens = [text]

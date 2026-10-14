@@ -76,3 +76,7 @@ Validated on 2026-10-04 against Lemonade Server 2026.40.0 with `Bonsai-1.7B-gguf
 The real-model validation should remain opt-in or self-hosted because hosted CI should not download large models or assume accelerator availability. Deterministic Mock Lemonade remains the mandatory pull-request gate.
 
 > **Port note:** a default Lemonade install already uses port 9000 for its WebSocket, so the adapter defaults to 9100. If you change `LEMONADE_A2A_PORT`, set a matching `LEMONADE_A2A_PUBLIC_URL` and pass `--a2a <url>` to the scripts.
+
+## Cross-checking an installation with `doctor`
+
+Before (or instead of) the manual steps above, `lemonade-a2a doctor --deep` checks the whole chain in seconds: component versions against the tested manifest, the configuration, whether Lemonade answers (version from `/api/v1/health`), whether the configured model exists and how large its context window is, and a tiny streaming generation. A model with a small context window (Lemonade sizes it from available memory; Gemma-4-12B gets 1,459 tokens on an 8 GB GPU) is flagged because prompts longer than it fail with a clear message rather than completing empty.

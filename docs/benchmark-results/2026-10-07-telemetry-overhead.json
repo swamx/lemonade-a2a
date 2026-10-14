@@ -1,0 +1,168 @@
+{
+  "runs": 800,
+  "method": "paired: every iteration measures every mode back to back, and each mode is compared with 'off' from the same iteration, so drift cancels",
+  "modes": {
+    "off": {
+      "ttft_ms": {
+        "median": 26.8489500740543,
+        "p95": 39.47350010275841
+      },
+      "total_ms": {
+        "median": 39.116599946282804,
+        "p95": 57.67160002142191
+      },
+      "chunks_per_s": {
+        "median": 670.5896325362256
+      },
+      "within_budget": true
+    },
+    "off-control": {
+      "ttft_ms": {
+        "median": 26.944750105030835,
+        "p95": 40.15689995139837
+      },
+      "total_ms": {
+        "median": 38.997350027784705,
+        "p95": 57.96639993786812
+      },
+      "chunks_per_s": {
+        "median": 670.857374044635
+      },
+      "paired_ttft_overhead_ms": {
+        "median": 0.065,
+        "ci95": [
+          -0.331,
+          0.412
+        ]
+      },
+      "ttft_limit_ms": 1.342,
+      "paired_throughput_vs_off": 0.998,
+      "within_budget": true,
+      "overhead_distinguishable_from_zero": false
+    },
+    "sdk-spans-only": {
+      "ttft_ms": {
+        "median": 42.83885005861521,
+        "p95": 90.60679981485009
+      },
+      "total_ms": {
+        "median": 68.28325008973479,
+        "p95": 131.5570999868214
+      },
+      "chunks_per_s": {
+        "median": 332.2569855704562
+      },
+      "paired_ttft_overhead_ms": {
+        "median": 15.599,
+        "ci95": [
+          14.643,
+          16.292
+        ]
+      },
+      "ttft_limit_ms": 1.342,
+      "paired_throughput_vs_off": 0.492,
+      "within_budget": false,
+      "overhead_distinguishable_from_zero": true
+    },
+    "on-100": {
+      "ttft_ms": {
+        "median": 27.950950083322823,
+        "p95": 40.18919984810054
+      },
+      "total_ms": {
+        "median": 40.09240015875548,
+        "p95": 58.998299995437264
+      },
+      "chunks_per_s": {
+        "median": 672.0458703242232
+      },
+      "paired_ttft_overhead_ms": {
+        "median": 1.095,
+        "ci95": [
+          0.666,
+          1.54
+        ]
+      },
+      "ttft_limit_ms": 1.342,
+      "paired_throughput_vs_off": 1.011,
+      "within_budget": true,
+      "overhead_distinguishable_from_zero": true
+    },
+    "on-10": {
+      "ttft_ms": {
+        "median": 27.610150049440563,
+        "p95": 40.06969998590648
+      },
+      "total_ms": {
+        "median": 39.85585004556924,
+        "p95": 56.568600004538894
+      },
+      "chunks_per_s": {
+        "median": 671.4256951740382
+      },
+      "paired_ttft_overhead_ms": {
+        "median": 0.514,
+        "ci95": [
+          0.131,
+          1.003
+        ]
+      },
+      "ttft_limit_ms": 1.342,
+      "paired_throughput_vs_off": 1.005,
+      "within_budget": true,
+      "overhead_distinguishable_from_zero": true
+    },
+    "otlp-100": {
+      "ttft_ms": {
+        "median": 29.037700034677982,
+        "p95": 44.343600049614906
+      },
+      "total_ms": {
+        "median": 41.66739992797375,
+        "p95": 61.928699957206845
+      },
+      "chunks_per_s": {
+        "median": 661.4768328281821
+      },
+      "paired_ttft_overhead_ms": {
+        "median": 1.905,
+        "ci95": [
+          1.511,
+          2.355
+        ]
+      },
+      "ttft_limit_ms": 1.342,
+      "paired_throughput_vs_off": 0.988,
+      "within_budget": false,
+      "overhead_distinguishable_from_zero": true
+    },
+    "otlp-100-sdk-spans": {
+      "ttft_ms": {
+        "median": 44.72469992469996,
+        "p95": 127.29340000078082
+      },
+      "total_ms": {
+        "median": 69.92040004115552,
+        "p95": 171.39369994401932
+      },
+      "chunks_per_s": {
+        "median": 330.51706879835217
+      },
+      "paired_ttft_overhead_ms": {
+        "median": 17.092,
+        "ci95": [
+          16.292,
+          17.75
+        ]
+      },
+      "ttft_limit_ms": 1.342,
+      "paired_throughput_vs_off": 0.5,
+      "within_budget": false,
+      "overhead_distinguishable_from_zero": true
+    }
+  },
+  "otlp_posts_received": 913,
+  "failures": [
+    "otlp-100"
+  ]
+}

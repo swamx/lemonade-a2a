@@ -49,13 +49,20 @@ def evaluate(report: dict) -> list[tuple[str, bool, str]]:
         )
     )
 
-    rate_d, rate_a = (report["chunks_per_s"][k]["median"] for k in ("direct", "a2a"))
+    # Output tokens/s is the throughput that matters; chunks/s only reflects where the
+    # transport split the text, so it is the fallback for reports that predate tokens/s.
+    metric, label = (
+        ("tokens_per_s", "tokens")
+        if "tokens_per_s" in report and report["tokens_per_s"]["direct"]["median"]
+        else ("chunks_per_s", "chunks")
+    )
+    rate_d, rate_a = (report[metric][k]["median"] for k in ("direct", "a2a"))
     ratio = rate_a / rate_d if rate_d else 1.0
     checks.append(
         (
             "Streaming throughput",
             ratio >= MIN_THROUGHPUT_RATIO,
-            f"{ratio:.0%} of direct (min {MIN_THROUGHPUT_RATIO:.0%})",
+            f"{ratio:.0%} of direct {label}/s (min {MIN_THROUGHPUT_RATIO:.0%})",
         )
     )
 
