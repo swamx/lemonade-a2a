@@ -39,6 +39,7 @@ _Last reviewed: 2026-10-05._ A checked box means the item is implemented **and**
 - [x] CI: ruff, ruff format check, pytest matrix (3.11-3.13), mock-Lemonade black-box job.
 - [x] Official TCK harness (`tck/tck_sut.py`, `scripts/run_tck.py`) and recorded results.
 - [x] Benchmark harness (TTFT, latency, throughput, cancellation, footprint, concurrent load) and `cancellation_proof.py`.
+- [x] Benchmarks separate **transport** (`chunks_per_s`, events whose boundaries depend on the server and framing) from **output** (`output_tokens`, `tokens_per_s`, one tokenizer for both paths), and record first reasoning output apart from the first user-visible answer; the overhead budget gates on tokens/s. A regression test sends identical text as one event and as many.
 
 ## P0 — Conformance evidence
 
@@ -135,14 +136,14 @@ Everything P0 and P1 left open, in one place. Nothing here blocks the specificat
 
 **Deferred decisions, each with its revisit trigger**
 
-- [~] Configurable event-queue bound: needs an upstream change in the A2A SDK (its v2 handler ignores a custom queue manager). **Drafted** in [upstream-issues/a2a-sdk-event-queue-bound.md](upstream-issues/a2a-sdk-event-queue-bound.md) with the stalled-client evidence; **not filed**, because filing an issue on another project needs the owner's OK. Revisit when the SDK exposes it.
+- [~] Configurable event-queue bound: needs an upstream change in the A2A SDK (its v2 handler ignores a custom queue manager). **Filed 2026-10-14** as [a2aproject/a2a-python#1339](https://github.com/a2aproject/a2a-python/issues/1339) with the stalled-client evidence (draft text kept in [upstream-issues/a2a-sdk-event-queue-bound.md](upstream-issues/a2a-sdk-event-queue-bound.md)). Revisit when the SDK exposes it.
 - [x] Read the OAuth/OIDC token subject inside the adapter: **closed as a decision.** The gateway pattern is documented ([security.md](security.md)) and the extension API now gives a deployment that needs it a supported way to do so (an authenticator plugin returns the identity, which becomes the task owner) without changing the adapter. Reopen if such a plugin should ship in the box.
 - [x] ITK: **closed as a decision**: it tests SDKs against each other through its own agents, so it does not apply to a standalone adapter. Revisit only if an adapter-facing mode appears.
-- [ ] Re-test the A2A CLI with card discovery once a CLI release bundles a2a-go v2.6.0 or later. **Checked 2026-10-06:** the latest CLI release is still v0.3.0 and `main` still depends on a2a-go v2.5.0, so there is nothing to re-test yet (a CLI rebuilt on v2.6.0 already passes; see [interoperability.md](interoperability.md)). External dependency.
-- [ ] Remove the TCK messageId workaround and the two expected deviations when [a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248) is fixed. **Checked 2026-10-06:** the issue is open with no response. Nothing to do until then; the patch will stop applying when the TCK changes, which fails the CI job and is the signal. External dependency.
+- [ ] Re-test the A2A CLI with card discovery once a CLI release bundles a2a-go v2.6.0 or later. **Checked 2026-10-14:** a2a-go v2.6.0 is released (2026-09-25) but the latest `a2a-cli` release is still v0.3.0 (2026-09-24), so the CLI still bundles v2.5.0 and the dependency is now on a *CLI release*, not on a2a-go. A CLI rebuilt on v2.6.0 already passes; see [interoperability.md](interoperability.md). External dependency.
+- [ ] Remove the TCK messageId workaround and the two expected deviations when [a2a-tck#248](https://github.com/a2aproject/a2a-tck/issues/248) is fixed. **Checked 2026-10-14:** the issue is still open with no comments (last activity 2026-10-05). Nothing to do until then; the patch will stop applying when the TCK changes, which fails the CI job and is the signal. External dependency.
 - [x] Re-evaluate the optional capabilities left undeclared (gRPC, push notifications, extended Agent Card): **done**, decisions unchanged, with reasons and triggers in [conformance.md](conformance.md#optional-capabilities-re-evaluated-2026-10-06).
 
-**Exit criterion:** every item is either done with evidence or explicitly closed with a reason; the hardware items may remain open only as "blocked on hardware".
+**Exit criterion (met, 2026-10-14):** every item is either done with evidence or explicitly closed with a reason; the remaining open items are blocked on hardware or on another project's release (CLI bundling a2a-go v2.6.0, a2a-tck#248, the SDK queue-bound issue) and each has its revisit trigger.
 
 ## P2 — Plug-and-play compatibility specification (new)
 
@@ -180,7 +181,7 @@ Design: [specification.md](specification.md). The goal is that after `pip instal
 - [x] Version and deprecation policy written down (semantic versioning, deprecation period for settings and the extension API). **Done**: [upgrading.md](upgrading.md#versioning-policy).
 - [x] Packaging: wheel and sdist build in CI, optional extras (`[otel]`, `[dev]`), and a release process. **Publishing to PyPI needs the owner's explicit approval and is not part of this item.** **Done**: the `package` job builds, installs the wheel alone with extras into a clean environment and runs the user commands; [releasing.md](releasing.md) is the checklist. **Publishing to PyPI still needs the owner's explicit approval and was not done.**
 
-**Exit criterion:** on a clean environment, `pip install -U a2a-sdk lemonade-a2a` followed by `lemonade-a2a doctor` gives a correct verdict in under five seconds for a supported combination, a clear failure for a known-broken one, and the canary matrix has run green at least once on all three SDK variants.
+**Exit criterion (met, 2026-10-14):** on a clean environment, `pip install -U a2a-sdk lemonade-a2a` followed by `lemonade-a2a doctor` gives a correct verdict in under five seconds for a supported combination, a clear failure for a known-broken one, and the canary matrix has run green at least once on all three SDK variants. Evidence: `doctor` took 2.9 s and exited 0 on a fresh virtual environment; the known-broken verdict is covered by `tests/test_cli_and_compat.py`; the GitHub canary run is green on `a2a-sdk` 1.2.0, latest and unbounded, plus OpenTelemetry latest.
 
 ## P2 — Observability with OpenTelemetry (new)
 
@@ -212,7 +213,7 @@ Design: [observability.md](observability.md). Opt-in, free when off, private by 
 - [x] Documentation: configuration reference, sampling and retention guidance, privacy modes. **Done** ([observability.md](observability.md)).
 - [x] Canary against the latest OpenTelemetry release in the compatibility matrix. **Done** (`otel` job in canary.yml).
 
-**Exit criterion:** with `[otel]` installed and an exporter configured, one request produces a connected trace from the client through the adapter to Lemonade, the dashboards show the documented metrics, the no-content-leak and resilience tests pass, and the measured overhead is inside the budget.
+**Exit criterion (met, 2026-10-14):** with `[otel]` installed and an exporter configured, one request produces a connected trace from the client through the adapter to Lemonade, the dashboards show the documented metrics, the no-content-leak and resilience tests pass, and the measured overhead is inside the budget. Evidence: trace-context propagation to the backend and the no-leak and resilience properties are tests in `tests/test_telemetry.py`; a test fails if the dashboard or alerts use a metric the adapter does not expose; the overhead is inside the revised budget ([observability.md](observability.md#6-performance)). A walk-through against a real collector with the example Compose stack has not been recorded.
 
 ## P3 — Lemonade-native architecture proposal
 
