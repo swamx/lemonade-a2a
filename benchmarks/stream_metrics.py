@@ -10,7 +10,9 @@ This module keeps the two apart:
 
 * ``chunks`` / ``chunks_per_s``: answer events and their rate (transport).
 * ``output_tokens`` / ``tokens_per_s``: tokens of the assembled answer and their
-  rate after the first answer event (output).
+  rate after the first answer event (output). It needs two or more events:
+  ``tokens_per_s_basis`` names the estimator and ``tokens_per_s_measured`` is
+  false when a single event made the rate 0.0, which is not zero-speed generation.
 * ``ttft_reasoning_ms`` / ``ttft_ms`` / ``ttft_any_ms``: first reasoning output,
   first user-visible answer, first output of either kind. Reasoning events are
   never counted as answer events or answer tokens.
@@ -103,6 +105,10 @@ class StreamTally:
             "chunks_per_s": (chunks - 1) / window if chunks > 1 else 0.0,
             "output_tokens": tokens,
             "tokens_per_s": after_first / window if chunks > 1 else 0.0,
+            # Label the estimator: tokens_per_s is a post-first-event rate and is 0.0 (not
+            # measured) for a single-event reply, e.g. a buffered non-streaming answer.
+            "tokens_per_s_basis": "post_first_event",
+            "tokens_per_s_measured": chunks > 1,
             "output_chars": len(self.answer_text),
         }
         if self.first_any is not None:
