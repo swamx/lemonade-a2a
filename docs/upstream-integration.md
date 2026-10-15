@@ -51,6 +51,8 @@ The native implementation must preserve Lemonade's existing requirements:
 
 ## Upstream PR sequence
 
+The detailed design, decision log and rollout gates for these steps are in [native/](native/README.md).
+
 Avoid a giant challenge PR. Prefer independently reviewable patches:
 
 1. **Design proposal** — Agent Card, transports, route shape, security and Router interaction.

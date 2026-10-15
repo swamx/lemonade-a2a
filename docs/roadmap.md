@@ -242,16 +242,18 @@ A2A clients                 Existing API clients
 
 The conformance, interoperability, real-runtime and hardening gates are met; the remaining prerequisites are the P2 carry-over (hardware evidence) and the P2 specification, which gives the native design a feature registry, a contract-test suite and telemetry instruments to match.
 
-- [ ] Map A2A endpoints onto the current Lemonade C++ HTTP layer.
-- [ ] Identify the smallest reusable A2A core independent of Python SDK internals.
-- [ ] Define Agent Card generation from Lemonade model/server capabilities.
-- [ ] Define Task/Artifact state ownership and lifecycle inside `lemond`.
-- [ ] Define streaming bridge from Lemonade generation events to A2A events.
-- [ ] Define cancellation from A2A task → Lemonade request/backend execution (the Python reference now proves the behavior to match).
-- [ ] Decide whether A2A shares Lemonade's primary port or uses a configurable listener (the sidecar already had to avoid Lemonade's WebSocket port 9000).
-- [ ] Align CLI/configuration naming with Lemonade maintainers rather than assuming `--a2a`.
-- [ ] Reuse the P2 specification: the native implementation claims features by registry id and must pass the same contract tests and emit the same telemetry instruments.
-- [ ] Write an upstream design proposal before a large native implementation.
+**Design status (2026-10-15):** the design set is drafted in [native/](native/README.md), pinned to upstream Lemonade commit `f0816fe`. Items marked *designed* below have a written recommendation awaiting maintainer review; none is *done* until the RFC is accepted. The decision log is [native/decisions.md](native/decisions.md); the RFC itself must be human-written per upstream's AI content policy ([outline](native/rfc-outline.md)).
+
+- [~] Map A2A endpoints onto the current Lemonade C++ HTTP layer. **Designed** in [native/mapping.md](native/mapping.md) (routes, auth allowlist, SPA fallback hazard); pending maintainer review.
+- [~] Identify the smallest reusable A2A core independent of Python SDK internals. **Designed** in [native/architecture.md](native/architecture.md#the-portable-core).
+- [~] Define Agent Card generation from Lemonade model/server capabilities. **Designed** in [native/capabilities-and-card.md](native/capabilities-and-card.md).
+- [~] Define Task/Artifact state ownership and lifecycle inside `lemond`. **Designed** in [native/state-and-lifecycle.md](native/state-and-lifecycle.md) (A2A-owned store; the job system was evaluated and rejected, D3).
+- [~] Define streaming bridge from Lemonade generation events to A2A events. **Designed**; the mechanism risk (the Router streams into an HTTP sink) needs spike S1 ([native/decisions.md](native/decisions.md#spikes-answer-before-phase-1-each-is-small-and-read-only-or-on-a-scratch-branch)).
+- [~] Define cancellation from A2A task → Lemonade request/backend execution (the Python reference now proves the behavior to match). **Designed** in [native/state-and-lifecycle.md](native/state-and-lifecycle.md#cancellation).
+- [~] Decide whether A2A shares Lemonade's primary port or uses a configurable listener (the sidecar already had to avoid Lemonade's WebSocket port 9000). **Recommendation: shared port** (D1), pending `@jeremyfowers`.
+- [~] Align CLI/configuration naming with Lemonade maintainers rather than assuming `--a2a`. **Proposed working names** (`a2a.*` in `config.json`, D4); the maintainers' to choose.
+- [~] Reuse the P2 specification: the native implementation claims features by registry id and must pass the same contract tests and emit the same telemetry instruments. **Designed** in [native/validation-and-migration.md](native/validation-and-migration.md); needs an `implementation` dimension in the registry (D7).
+- [ ] Write an upstream design proposal before a large native implementation. **Open and human-authored**: notes in [native/rfc-outline.md](native/rfc-outline.md); nothing is posted.
 
 ## P3 — Native prototype
 

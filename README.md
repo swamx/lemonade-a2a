@@ -268,6 +268,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 - [Benchmarks](docs/benchmarks.md)
 - [Roadmap / TODO](docs/roadmap.md)
 - [Upstream integration](docs/upstream-integration.md)
+- [Native Lemonade A2A: design and implementation plan (draft)](docs/native/README.md)
 
 ## Status
 
