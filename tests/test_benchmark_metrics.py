@@ -74,6 +74,15 @@ def test_hello_world_as_one_event_or_two_is_the_same_output() -> None:
     assert one["chunks_per_s"] == 0.0 < two["chunks_per_s"]
 
 
+def test_single_event_rate_is_labelled_unmeasured_not_zero_speed() -> None:
+    one = _tally(["Hello world"])
+    two = _tally(["Hello", " world"])
+
+    assert one["tokens_per_s_basis"] == two["tokens_per_s_basis"] == "post_first_event"
+    assert one["tokens_per_s_measured"] is False
+    assert two["tokens_per_s_measured"] is True
+
+
 def test_a_word_split_across_events_is_still_one_token() -> None:
     assert _tally(["Hel", "lo"])["output_tokens"] == _tally(["Hello"])["output_tokens"] == 1
 
