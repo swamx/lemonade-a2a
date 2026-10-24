@@ -23,7 +23,8 @@
     "tested": [
       "1.2.0",
       "1.2.1",
-      "1.2.2"
+      "1.2.2",
+      "1.2.3"
     ],
     "known_broken": []
   },
@@ -69,7 +70,7 @@
         {
           "requested": "latest",
           "status": "passed",
-          "a2a_sdk": "1.2.2",
+          "a2a_sdk": "1.2.3",
           "tests": {
             "tests": 422,
             "failures": 0,
