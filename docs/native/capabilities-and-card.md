@@ -4,7 +4,7 @@
 
 ## Card contents
 
-The card keeps the adapter's content rules, all enforced by tests there and portable as a golden-file check:
+The card keeps the adapter's content rules, all enforced by tests there and portable as a golden-file check (`examples/agent-card.json` is already that golden file: `tests/test_agent_card.py` fails when it drifts from the generated card):
 
 - one interface per advertised binding, URLs derived from `a2a.public_url` or the request `Host`;
 - `streaming: true` only when the streaming route is enabled; push notifications and the extended card stay

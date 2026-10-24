@@ -47,7 +47,7 @@ own case. **A new A2A path that is not added there would be unauthenticated**, s
 | Agent Card | Public, declares the bearer scheme only when auth is enforced | Public for discovery (spec intent). **Needs `@Geramy`'s review** |
 | Per-user task isolation | Named keys; key name is the task owner | **Gap:** upstream has a single key (plus an admin key), so every caller is one identity. Options: (a) accept a single tenant and document it, (b) derive an owner from a client session header (*assumed*: upstream honors `X-Client-Session-Id` for telemetry; unverified for this use). Isolation is a P4 concern unless upstream grows named keys |
 | Rate limiting | `LEMONADE_A2A_RATE_LIMIT_PER_MINUTE` | **Gap:** no upstream rate limiter was found (*assumed*); out of scope, a proxy concern |
-| TLS / mTLS | Adapter terminates TLS | *Assumed* not provided by `lemond`; terminate at a reverse proxy. Exposure profiles are replaced by Lemonade's own host binding plus the API key |
+| TLS / mTLS | Adapter terminates TLS | *Verified at `f0816fe`:* `server.cpp` contains no TLS or SSL server setup (searched for `SSLServer`, `OPENSSL`, certificate options), so `lemond` does not terminate TLS there; terminate at a reverse proxy. Exposure profiles are replaced by Lemonade's own host binding plus the API key |
 
 ## Configuration (decision D4)
 
@@ -66,7 +66,7 @@ owner (`@bitgamma`) wants it. **The name is the maintainers' to choose**; `a2a.*
 | `LEMONADE_A2A_MAX_INPUT_CHARS`, `_MAX_INPUT_PARTS` | `a2a.max_input_chars`, `a2a.max_input_parts` |
 | `LEMONADE_A2A_MAX_TASK_SECONDS`, `_MAX_CONCURRENT_TASKS`, `_MAX_STORED_TASKS` | `a2a.max_task_seconds`, `a2a.max_concurrent_tasks`, `a2a.max_stored_tasks` |
 | `LEMONADE_A2A_REASONING`, `_CANCEL_ON_DISCONNECT` | `a2a.reasoning`, `a2a.cancel_on_disconnect` |
-| `LEMONADE_A2A_MAX_REQUEST_BYTES` | Whatever upstream's HTTP layer already enforces (*assumed*: check) |
+| `LEMONADE_A2A_MAX_REQUEST_BYTES` | *Verified at `f0816fe`:* `server.cpp` sets a 30 s read timeout and a keep-alive cap of 100 but **no explicit payload limit** (no `set_payload_max_length`), so the HTTP library's default applies. A2A enforces its own input limits (`a2a.max_input_chars`, `a2a.max_input_parts`) and should decide whether to add a request-size check |
 | `LEMONADE_A2A_PROFILE`, `_API_KEY(S)`, `_RATE_LIMIT_*`, `_SSL_*` | Not applicable, see Authentication |
 | `LEMONADE_A2A_OTEL*`, `OTEL_*` | Not applicable: use upstream's own telemetry (see [validation-and-migration.md](validation-and-migration.md)) |
 | `LEMONADE_A2A_COMPAT`, `_FEATURES`, TOML layers | Not applicable; feature claims are static per build |
