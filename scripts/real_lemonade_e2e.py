@@ -35,7 +35,7 @@ async def discover_model(client: httpx.AsyncClient, lemonade: str) -> str:
 
 async def main(args: argparse.Namespace) -> None:
     async with httpx.AsyncClient(timeout=args.timeout) as client:
-        await wait_ready(client, f"{args.a2a.rstrip('/')}/healthz")
+        await wait_ready(client, f"{args.a2a.rstrip('/')}{args.ready_path}")
         await wait_ready(client, f"{args.lemonade.rstrip('/')}/models")
 
         model = args.model or await discover_model(client, args.lemonade)
@@ -78,6 +78,9 @@ if __name__ == "__main__":
         description="Validate Lemonade A2A against a real Lemonade server"
     )
     parser.add_argument("--a2a", default="http://127.0.0.1:9100")
+    parser.add_argument(
+        "--ready-path", default="/healthz", help="liveness path of the A2A server under test"
+    )
     parser.add_argument("--lemonade", default="http://127.0.0.1:13305/v1")
     parser.add_argument("--model", default="")
     parser.add_argument("--prompt", default="Reply in one short sentence: what is local AI?")

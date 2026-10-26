@@ -21,10 +21,10 @@ and security, `@bitgamma` CLI); this repository can recommend but cannot decide.
 | Id | Question | Done when |
 |---|---|---|
 | S1 | Can the bridge consume `Router::chat_completion_stream` through an in-process sink and take a task-owned cancel flag, or is a Router callback needed? | A 50-line scratch branch streams a canned prompt into a string and cancels on a flag |
-| S2 | How are the web-app catch-all, `/.well-known` and A2A routes ordered, and does a test pin it? | A scratch test shows the Card route wins and 401 appears with a key set |
+| S2 | How are the web-app catch-all, `/.well-known` and A2A routes ordered, and does a test pin it? | **Read 2026-10-15 (verified at `f0816fe`):** MCP is registered at `server.cpp` line 1550, the static and web-app routes after it (1552 onward), and the SPA fallback regex does not exclude `/.well-known` or `/a2a`. Registering A2A beside MCP therefore wins by order. **Still open:** a test that pins the order and the 401-with-key behavior, which needs a build |
 | S3 | How does the TCK get deterministic scenario answers from `lemond`? | A recipe (mock model or recorded prompts) runs the TCK clean for the declared capabilities |
 | S4 | How are upstream telemetry instruments registered, and can new ones be added without a new dependency? | One counter appears in `/metrics` from scratch code |
-| S5 | What body-size limit and TLS support does `lemond` actually have? | Read from source; fills the two "assumed" cells in [mapping.md](mapping.md) |
+| S5 | What body-size limit and TLS support does `lemond` actually have? | **Done (verified at `f0816fe`):** no explicit payload limit and no TLS termination in `server.cpp`; see [mapping.md](mapping.md) |
 
 ## Questions only upstream maintainers can answer
 
