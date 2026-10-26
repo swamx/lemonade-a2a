@@ -40,3 +40,28 @@ async def test_rejects_mismatched_rpc_id(monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
     with pytest.raises(RemoteA2AError, match="identifier mismatch"):
         await RemoteA2AClient("https://example.org/a2a").send_data("search_flights", {})
+
+
+@pytest.mark.asyncio
+async def test_send_message_accepts_protocol_parts(monkeypatch):
+    captured = {}
+
+    async def fake_post(self, endpoint, *, json):
+        captured["parts"] = json["params"]["message"]["parts"]
+        return httpx.Response(
+            200,
+            json={"jsonrpc": "2.0", "id": json["id"], "result": {"kind": "message"}},
+            request=httpx.Request("POST", endpoint),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    client = RemoteA2AClient("https://example.org/a2a")
+    await client.send_message([{"kind": "text", "text": "Hello remote agent"}])
+    assert captured["parts"] == [{"kind": "text", "text": "Hello remote agent"}]
+
+
+@pytest.mark.asyncio
+async def test_send_message_rejects_missing_parts():
+    client = RemoteA2AClient("https://example.org/a2a")
+    with pytest.raises(ValueError, match="message part"):
+        await client.send_message([])
