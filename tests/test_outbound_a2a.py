@@ -1,6 +1,4 @@
 """Tests for the outbound A2A wire format and failure handling."""
-from unittest.mock import AsyncMock
-
 import httpx
 import pytest
 
