@@ -4,7 +4,7 @@ This is also usable behind an optional NANDA resolver: resolve an agent ID to
 a trusted Agent Card URL first, then pass its LOCAL URL via --base-url.
 No remote registry is required for the offline path.
 
-Run: python scripts/demo_local_a2a.py --base-url http://127.0.0.1:9100
+Run: python demo/local/demo_local_a2a.py --base-url http://127.0.0.1:9100
 """
 
 from __future__ import annotations
