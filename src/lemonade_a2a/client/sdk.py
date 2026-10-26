@@ -6,6 +6,7 @@ connection lifetime and injects outbound authentication and timeouts.
 """
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -78,9 +79,18 @@ class A2AClient:
         async for result in self._connected().send_message(request):
             yield result
 
-    async def get_task(self, request: GetTaskRequest) -> Any:
-        """Fetch task status. Safe to retry at the application orchestration layer."""
-        return await self._connected().get_task(request)
+    async def get_task(self, request: GetTaskRequest, *, retries: int = 0) -> Any:
+        """Retry transient failures only for an idempotent read, never for writes."""
+        if not 0 <= retries <= 3:
+            raise ValueError("retries must be between 0 and 3")
+        for attempt in range(retries + 1):
+            try:
+                return await self._connected().get_task(request)
+            except (httpx.TimeoutException, httpx.TransportError):
+                if attempt == retries:
+                    raise
+                await asyncio.sleep(0.25 * (2 ** attempt))
+        raise AssertionError("unreachable")
 
     async def cancel_task(self, request: CancelTaskRequest) -> Any:
         """Request cancellation (do not blindly retry a failed request)."""
