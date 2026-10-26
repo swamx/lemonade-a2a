@@ -22,36 +22,48 @@ class RemoteA2AClient:
         self.endpoint = endpoint
         self.timeout = timeout
 
-    async def send_data(self, action: str, inputs: dict[str, Any]) -> dict[str, Any]:
-        """Send a protocol 0.3 data part to a preapproved remote endpoint."""
-        if not action or not isinstance(inputs, dict):
-            raise ValueError("action and inputs are required")
-        message_id = uuid.uuid4().hex
+    async def send_message(self, parts: list[dict[str, Any]]) -> dict[str, Any]:
+        """Send protocol 0.3 message parts to a trusted A2A endpoint.
+
+        The reusable API takes protocol parts, not merchant-specific actions.
+        Callers own negotiation of the remote Agent Card and protocol version.
+        """
+        if not parts or any(not isinstance(part, dict) or "kind" not in part for part in parts):
+            raise ValueError("At least one well-formed A2A message part is required")
+        request_id = uuid.uuid4().hex
         payload = {
             "jsonrpc": "2.0",
-            "id": message_id,
+            "id": request_id,
             "method": "message/send",
             "params": {
                 "message": {
                     "messageId": uuid.uuid4().hex,
                     "role": "user",
-                    "parts": [{
-                        "kind": "data",
-                        "data": {"action": action, "input": inputs},
-                    }],
+                    "parts": parts,
                 }
             },
         }
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=False) as client:
             response = await client.post(self.endpoint, json=payload)
             response.raise_for_status()
-            result = response.json()
-        if not isinstance(result, dict) or result.get("jsonrpc") != "2.0":
+            envelope = response.json()
+        if not isinstance(envelope, dict) or envelope.get("jsonrpc") != "2.0":
             raise RemoteA2AError("Unexpected remote JSON-RPC response")
-        if result.get("id") != message_id:
+        if envelope.get("id") != request_id:
             raise RemoteA2AError("Remote JSON-RPC response identifier mismatch")
-        if result.get("error"):
-            raise RemoteA2AError(f"Remote A2A error: {result['error']}")
-        if "result" not in result:
-            raise RemoteA2AError("Remote A2A result is missing")
-        return result["result"]
+        if envelope.get("error"):
+            raise RemoteA2AError(f"Remote A2A error: {envelope['error']}")
+        if not isinstance(envelope.get("result"), dict):
+            raise RemoteA2AError("Remote A2A result is missing or invalid")
+        return envelope["result"]
+
+    async def send_data(self, action: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Convenience wrapper for provider-defined action/input DataParts.
+
+        The action/input convention is not defined by the A2A protocol.
+        """
+        if not action or not isinstance(inputs, dict):
+            raise ValueError("action and inputs are required")
+        return await self.send_message(
+            [{"kind": "data", "data": {"action": action, "input": inputs}}]
+        )
