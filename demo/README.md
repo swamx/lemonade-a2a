@@ -15,8 +15,8 @@ and scenario assets and instructions belong here.
 
 ## Stable API boundary
 
-`RemoteA2AClient.send_message(parts)` handles protocol 0.3 JSON-RPC messages.
-`send_data(action, inputs)` is only a convenience wrapper for remote agents
+`A2AClient.send_message(request)` handles protocol 0.3 JSON-RPC messages.
+`client.compat_v03.RemoteA2AClient.send_data(action, inputs)` is only a convenience wrapper for remote agents
 that document the `action/input` DataPart convention (including Travel Merchant).
 Avoid adding merchant-specific endpoints or booking behavior to the library.
 
