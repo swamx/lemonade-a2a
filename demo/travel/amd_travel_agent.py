@@ -19,7 +19,7 @@ from datetime import date
 import httpx
 
 from lemonade_a2a.lemonade_client import LemonadeClient
-from lemonade_a2a.outbound import RemoteA2AClient
+from lemonade_a2a.client.compat_v03 import RemoteA2AClient
 
 CARD = "https://travel.agenthaven.dev/.well-known/agent-card.json"
 ENDPOINT = "https://travel.agenthaven.dev/a2a"
