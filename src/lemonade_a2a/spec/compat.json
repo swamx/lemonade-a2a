@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_version": "0.1",
-  "generated_at": "2026-10-07T13:04:40+00:00",
+  "generated_at": "2026-10-24T17:46:57+00:00",
   "adapter": {
     "version": "0.1.0"
   },
@@ -23,7 +23,8 @@
     "tested": [
       "1.2.0",
       "1.2.1",
-      "1.2.2"
+      "1.2.2",
+      "1.2.3"
     ],
     "known_broken": []
   },
@@ -35,7 +36,7 @@
   },
   "evidence": {
     "canary": {
-      "run_at": "2026-10-07T13:03:57+00:00",
+      "run_at": "2026-10-24T17:46:37+00:00",
       "python": "3.11.7",
       "results": [
         {
@@ -43,21 +44,7 @@
           "status": "passed",
           "a2a_sdk": "1.2.0",
           "tests": {
-            "tests": 422,
-            "failures": 0,
-            "errors": 0,
-            "skipped": 1
-          },
-          "doctor": "warn",
-          "tck": "passed",
-          "tck_patched": "passed"
-        },
-        {
-          "requested": "1.2.1",
-          "status": "passed",
-          "a2a_sdk": "1.2.1",
-          "tests": {
-            "tests": 422,
+            "tests": 447,
             "failures": 0,
             "errors": 0,
             "skipped": 1
@@ -67,16 +54,44 @@
           "tck_patched": "passed"
         },
         {
-          "requested": "latest",
+          "requested": "1.2.1",
           "status": "passed",
-          "a2a_sdk": "1.2.2",
+          "a2a_sdk": "1.2.1",
           "tests": {
-            "tests": 422,
+            "tests": 447,
             "failures": 0,
             "errors": 0,
             "skipped": 1
           },
-          "doctor": "warn",
+          "doctor": "pass",
+          "tck": "passed",
+          "tck_patched": "passed"
+        },
+        {
+          "requested": "1.2.2",
+          "status": "passed",
+          "a2a_sdk": "1.2.2",
+          "tests": {
+            "tests": 447,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          },
+          "doctor": "pass",
+          "tck": "passed",
+          "tck_patched": "passed"
+        },
+        {
+          "requested": "1.2.3",
+          "status": "passed",
+          "a2a_sdk": "1.2.3",
+          "tests": {
+            "tests": 447,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          },
+          "doctor": "pass",
           "tck": "passed",
           "tck_patched": "passed"
         }
@@ -90,7 +105,7 @@
         "skipped": 104,
         "xfailed": 4
       },
-      "run_at": "2026-10-05T20:01:01+00:00"
+      "run_at": "2026-10-07T13:53:57+00:00"
     }
   }
 }
