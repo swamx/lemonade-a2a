@@ -1,5 +1,4 @@
 """Contract tests for SDK facade, using a fake SDK (no network)."""
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
