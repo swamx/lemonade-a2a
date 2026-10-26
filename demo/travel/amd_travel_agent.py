@@ -1,7 +1,7 @@
 """AMD Challenge demo: local Lemonade summarizes a real remote A2A flight quote.
 
 Usage:
-  python examples/amd_travel_agent.py --origin MAD --destination LHR --date 2026-11-19
+  python demo/travel/amd_travel_agent.py --origin MAD --destination LHR --date 2026-11-19
 
 This script sends an actual message/send call to the independently hosted
 Agent Bench Travel Merchant, then calls Lemonade's local OpenAI-compatible API.
