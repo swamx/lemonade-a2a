@@ -11,6 +11,8 @@ from a2a_util import artifact_text
 
 A2A_BASE = os.getenv("A2A_BASE_URL", "http://127.0.0.1:9100")
 EXPECTED = os.getenv("EXPECTED_TEXT", "MOCK_LEMONADE_OK")
+# The adapter exposes /healthz; another A2A server (a native one) has its own liveness path.
+READY_PATH = os.getenv("A2A_READY_PATH", "/healthz")
 
 
 async def wait_ready(client: httpx.AsyncClient, url: str, attempts: int = 60) -> None:
@@ -27,7 +29,7 @@ async def wait_ready(client: httpx.AsyncClient, url: str, attempts: int = 60) ->
 
 async def main() -> None:
     async with httpx.AsyncClient(timeout=30.0) as client:
-        await wait_ready(client, f"{A2A_BASE}/healthz")
+        await wait_ready(client, f"{A2A_BASE}{READY_PATH}")
 
         card_response = await client.get(f"{A2A_BASE}/.well-known/agent-card.json")
         card_response.raise_for_status()

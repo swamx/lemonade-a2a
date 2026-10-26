@@ -15,12 +15,12 @@ import uuid
 import httpx
 
 
-async def check(base_url: str) -> None:
+async def check(base_url: str, ready_path: str = "/healthz") -> None:
     base_url = base_url.rstrip("/")
     headers = {"A2A-Version": "1.0"}
 
     async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
-        health = await client.get(f"{base_url}/healthz")
+        health = await client.get(f"{base_url}{ready_path}")
         health.raise_for_status()
 
         card = await client.get(f"{base_url}/.well-known/agent-card.json")
@@ -57,8 +57,11 @@ async def check(base_url: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:9100")
+    parser.add_argument(
+        "--ready-path", default="/healthz", help="liveness path of the A2A server under test"
+    )
     args = parser.parse_args()
-    asyncio.run(check(args.base_url))
+    asyncio.run(check(args.base_url, args.ready_path))
 
 
 if __name__ == "__main__":
