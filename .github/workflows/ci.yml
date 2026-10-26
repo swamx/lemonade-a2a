@@ -118,7 +118,7 @@ jobs:
         run: |
           /tmp/clean/bin/lemonade-a2a version
           /tmp/clean/bin/lemonade-a2a capabilities | head -20
-          /tmp/clean/bin/lemonade-a2a doctor --no-lemonade --sdk-gap
+          python "$GITHUB_WORKSPACE/scripts/check_package_doctor.py" /tmp/clean/bin/lemonade-a2a
           /tmp/clean/bin/lemonade-a2a config validate
           /tmp/clean/bin/lemonade-a2a support-bundle --output /tmp/bundle.zip
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
