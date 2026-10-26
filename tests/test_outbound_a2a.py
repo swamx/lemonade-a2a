@@ -2,7 +2,7 @@
 import httpx
 import pytest
 
-from lemonade_a2a.outbound import RemoteA2AClient, RemoteA2AError
+from lemonade_a2a.client.compat_v03 import RemoteA2AClient, RemoteA2AError
 
 
 def test_remote_endpoint_must_be_https():
