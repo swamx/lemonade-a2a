@@ -31,7 +31,7 @@ async def main() -> int:
     parser.add_argument("--destination", default="LHR", help="Three-letter IATA arrival code")
     parser.add_argument("--date", default="2026-11-19", help="Departure date YYYY-MM-DD")
     parser.add_argument("--model", default=os.getenv("LEMONADE_MODEL", ""))
-    parser.add_argument("--lemonade-url", default=os.getenv("LEMONADE_URL", "http://127.0.0.1:8000/api/v1"))
+    parser.add_argument("--lemonade-url", default=os.getenv("LEMONADE_URL", "http://127.0.0.1:13305/v1"))
     parser.add_argument("--raw-only", action="store_true", help="Only test the remote A2A agent")
     args = parser.parse_args()
     for code in (args.origin, args.destination):
