@@ -1,4 +1,5 @@
 """Regression for package smoke when a newer compatible SDK is installed."""
+
 from scripts.check_package_doctor import acceptable
 
 
@@ -15,10 +16,16 @@ def test_all_pass():
 
 
 def test_new_untested_sdk_allowed():
-    assert acceptable(report(
-        check("python", "pass"),
-        check("a2a_sdk", "warn", "a2a-sdk 1.2.4 is inside the declared range >=1.2.0,<1.3 but was not tested"),
-    ))
+    assert acceptable(
+        report(
+            check("python", "pass"),
+            check(
+                "a2a_sdk",
+                "warn",
+                "a2a-sdk 1.2.4 is inside the declared range >=1.2.0,<1.3 but was not tested",
+            ),
+        )
+    )
 
 
 def test_outside_range_or_known_broken_not_allowed():
