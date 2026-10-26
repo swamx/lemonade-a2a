@@ -6,6 +6,7 @@ No remote registry is required for the offline path.
 
 Run: python scripts/demo_local_a2a.py --base-url http://127.0.0.1:9100
 """
+
 from __future__ import annotations
 
 import argparse
@@ -61,7 +62,9 @@ def send(client: httpx.Client, base: str, prompt: str, token: str | None) -> dic
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--base-url", type=local_url, default="http://127.0.0.1:9100")
-    parser.add_argument("--prompt", default="Explain how local A2A agents protect private data in two sentences.")
+    parser.add_argument(
+        "--prompt", default="Explain how local A2A agents protect private data in two sentences."
+    )
     parser.add_argument("--token", help="Optional bearer token for authenticated local adapter")
     args = parser.parse_args()
     try:
