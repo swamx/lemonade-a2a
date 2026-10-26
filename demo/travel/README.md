@@ -39,7 +39,7 @@ Set `LEMONADE_MODEL` if more than one model is exposed. Override
 ## Protocol notes
 
 The Agent Bench card currently advertises A2A 0.3 JSON-RPC, while this repo's
-A2A server uses a 1.2.x Python SDK. The optional `outbound.RemoteA2AClient`
+A2A server uses a 1.2.x Python SDK. The optional `client.compat_v03.RemoteA2AClient`
 sends explicit 0.3 wire-format requests so no incompatible 1.x client calls
 are assumed to work. The provider's discovery identity and exact endpoint are
 pinned in the example rather than resolved from an arbitrary URL.
