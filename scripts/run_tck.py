@@ -113,6 +113,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tck-dir", type=Path, required=True)
     parser.add_argument("--port", type=int, default=9999)
+    parser.add_argument(
+        "--url",
+        help="test an already running A2A server at this base URL instead of starting the "
+        "Python test SUT (for example a native implementation). The server must answer the "
+        "TCK's scenario prompts the way tck/tck_sut.py does; see docs/native/validation-and-migration.md",
+    )
     parser.add_argument("--output", type=Path, default=ROOT / "docs" / "conformance-results.json")
     parser.add_argument(
         "--patch",
@@ -124,12 +130,16 @@ def main() -> int:
     )
     args = parser.parse_args()
     tck_dir = args.tck_dir.resolve()
-    url = f"http://127.0.0.1:{args.port}"
+    url = args.url.rstrip("/") if args.url else f"http://127.0.0.1:{args.port}"
 
     for patch in args.patch:
         git_apply(tck_dir, patch)
     env = {**os.environ, "PYTHONPATH": str(ROOT), "TCK_SUT_PORT": str(args.port)}
-    sut = subprocess.Popen([sys.executable, "-m", "tck.tck_sut"], cwd=ROOT, env=env)
+    sut = (
+        None
+        if args.url
+        else subprocess.Popen([sys.executable, "-m", "tck.tck_sut"], cwd=ROOT, env=env)
+    )
     try:
         wait_for_card(url)
         subprocess.run(
@@ -138,8 +148,9 @@ def main() -> int:
             check=False,
         )
     finally:
-        sut.terminate()
-        sut.wait(timeout=10)
+        if sut is not None:
+            sut.terminate()
+            sut.wait(timeout=10)
         for patch in reversed(args.patch):
             git_apply(tck_dir, patch, reverse=True)
 
@@ -157,6 +168,7 @@ def main() -> int:
         "run_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "status": "failed" if failed else "passed",
         "tck_patches": [patch.name for patch in args.patch],
+        "sut": "external" if args.url else "tck.tck_sut",
         "unexpected_deviations": unexpected,
         "notes": [
             (
