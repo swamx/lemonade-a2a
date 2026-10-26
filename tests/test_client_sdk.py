@@ -59,3 +59,39 @@ async def test_sdk_delegation_and_close(monkeypatch):
         assert await client.cancel_task("task") == {"cancel": "task"}
         assert seen["url"] == "https://agent.example"
     sdk.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_task_retries_transient_read_only(monkeypatch):
+    import httpx
+
+    calls = 0
+
+    class FakeSDK:
+        async def close(self):
+            pass
+
+        async def get_task(self, request):
+            nonlocal calls
+            calls += 1
+            if calls < 2:
+                raise httpx.ConnectError("temporary connection problem")
+            return {"status": "completed"}
+
+    class FakeFactory:
+        def __init__(self, config):
+            pass
+
+        async def create_from_url(self, url):
+            return FakeSDK()
+
+    async def no_delay(_):
+        return None
+
+    monkeypatch.setattr("lemonade_a2a.client.sdk.ClientFactory", FakeFactory)
+    monkeypatch.setattr("lemonade_a2a.client.sdk.asyncio.sleep", no_delay)
+    async with A2AClient("https://agent.example") as client:
+        assert await client.get_task("task", retries=1) == {"status": "completed"}
+        assert calls == 2
+        with pytest.raises(ValueError):
+            await client.get_task("task", retries=4)
