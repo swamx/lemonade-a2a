@@ -15,10 +15,10 @@ flight tickets. A quoted itinerary is **not** an actual booking.
 ```bash
 python -m pip install -e ".[dev]"
 # First verify remote protocol without Lemonade:
-python examples/amd_travel_agent.py --origin MAD --destination LHR --date 2026-11-19 --raw-only
+python demo/travel/amd_travel_agent.py --origin MAD --destination LHR --date 2026-11-19 --raw-only
 
 # Then run complete demo against the locally loaded model:
-python examples/amd_travel_agent.py --origin MAD --destination LHR --date 2026-11-19
+python demo/travel/amd_travel_agent.py --origin MAD --destination LHR --date 2026-11-19
 ```
 
 Set `LEMONADE_MODEL` if more than one model is exposed. Override
