@@ -2,7 +2,7 @@
 
 Run the Lemonade server and lemonade-a2a first, then execute:
 
-    python examples/a2a_client.py
+    python demo/local/a2a_client.py
 """
 
 from __future__ import annotations
