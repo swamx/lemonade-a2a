@@ -3,6 +3,7 @@
 This intentionally keeps remote transport separate from the Lemonade inference
 backend. Full 1.x outbound support can be added as another transport adapter.
 """
+
 from __future__ import annotations
 
 import uuid

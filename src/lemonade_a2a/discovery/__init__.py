@@ -1,9 +1,10 @@
 """Reusable discovery abstractions; remote registries can implement resolve()."""
+
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from urllib.parse import urlsplit
-import ipaddress
 
 
 @dataclass(frozen=True)
@@ -23,11 +24,11 @@ def validate_remote_url(url: str, *, allow_local: bool = False) -> str:
         if host == "localhost" or host.endswith(".local"):
             raise ValueError("Private or local agent URLs are not allowed")
         try:
-            if not ipaddress.ip_address(host).is_global:
-                raise ValueError("Non-public IP addresses are not allowed")
-        except ValueError as exc:
-            if "not allowed" in str(exc):
-                raise
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None  # Not a literal IP (e.g. a domain name); DNS is resolved later.
+        if address is not None and not address.is_global:
+            raise ValueError("Non-public IP addresses are not allowed")
     return url
 
 

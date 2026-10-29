@@ -1,4 +1,5 @@
 """Tests for the outbound A2A wire format and failure handling."""
+
 import httpx
 import pytest
 
@@ -35,8 +36,12 @@ async def test_sends_a2a_03_data_part(monkeypatch):
 @pytest.mark.asyncio
 async def test_rejects_mismatched_rpc_id(monkeypatch):
     async def fake_post(self, endpoint, *, json):
-        return httpx.Response(200, json={"jsonrpc": "2.0", "id": "wrong", "result": {}},
-                              request=httpx.Request("POST", endpoint))
+        return httpx.Response(
+            200,
+            json={"jsonrpc": "2.0", "id": "wrong", "result": {}},
+            request=httpx.Request("POST", endpoint),
+        )
+
     monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
     with pytest.raises(RemoteA2AError, match="identifier mismatch"):
         await RemoteA2AClient("https://example.org/a2a").send_data("search_flights", {})

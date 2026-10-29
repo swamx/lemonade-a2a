@@ -1,4 +1,5 @@
 """Contract tests for SDK facade, using a fake SDK (no network)."""
+
 from unittest.mock import AsyncMock
 
 import pytest
@@ -59,6 +60,27 @@ async def test_sdk_delegation_and_close(monkeypatch):
         assert await client.cancel_task("task") == {"cancel": "task"}
         assert seen["url"] == "https://agent.example"
     sdk.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_aclose_still_closes_http_when_sdk_close_raises(monkeypatch):
+    class FailingSDK:
+        async def close(self):
+            raise RuntimeError("sdk close failed")
+
+    class FakeFactory:
+        def __init__(self, config):
+            pass
+
+        async def create_from_url(self, url):
+            return FailingSDK()
+
+    monkeypatch.setattr("lemonade_a2a.client.sdk.ClientFactory", FakeFactory)
+    client = await A2AClient("https://agent.example").__aenter__()
+    http = client._http
+    with pytest.raises(RuntimeError):
+        await client.aclose()
+    assert http.is_closed
 
 
 @pytest.mark.asyncio

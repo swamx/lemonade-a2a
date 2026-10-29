@@ -4,11 +4,12 @@ Use the upstream A2A SDK for protocol negotiation, JSON-RPC, HTTP+JSON,
 legacy 0.3 compatibility, task lifecycle and streaming. This facade owns
 connection lifetime and injects outbound authentication and timeouts.
 """
+
 from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Self
 
 import httpx
 from a2a.client import ClientConfig, ClientFactory
@@ -41,7 +42,7 @@ class A2AClient:
         self._http: httpx.AsyncClient | None = None
         self._sdk: Any = None
 
-    async def __aenter__(self) -> "A2AClient":
+    async def __aenter__(self) -> Self:
         if self._sdk is None:
             headers = {"Authorization": f"Bearer {self.bearer_token}"} if self.bearer_token else {}
             self._http = httpx.AsyncClient(
@@ -61,10 +62,12 @@ class A2AClient:
     async def aclose(self) -> None:
         sdk, self._sdk = self._sdk, None
         http, self._http = self._http, None
-        if sdk is not None:
-            await sdk.close()
-        if http is not None:
-            await http.aclose()
+        try:
+            if sdk is not None:
+                await sdk.close()
+        finally:
+            if http is not None:
+                await http.aclose()
 
     async def __aexit__(self, *_: object) -> None:
         await self.aclose()
@@ -89,7 +92,7 @@ class A2AClient:
             except (httpx.TimeoutException, httpx.TransportError):
                 if attempt == retries:
                     raise
-                await asyncio.sleep(0.25 * (2 ** attempt))
+                await asyncio.sleep(0.25 * (2**attempt))
         raise AssertionError("unreachable")
 
     async def cancel_task(self, request: CancelTaskRequest) -> Any:

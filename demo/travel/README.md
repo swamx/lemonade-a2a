@@ -63,3 +63,8 @@ Endpoint health reported by external directories is not a guarantee that a
 live call will succeed. Run `--raw-only` before recording. Do not cache live
 quotes as though they are current. Flight search input requires IATA airport
 codes and a future ISO date. Remote merchant may not cover all route/date pairs.
+
+The merchant also caps anonymous `search_flights` calls to 120 per UTC month
+(error code `search_budget_exhausted`); if `--raw-only` reports that error,
+the demo script and client are working correctly, but the recording will need
+to wait for next month's quota or use a bearer-authenticated call instead.
