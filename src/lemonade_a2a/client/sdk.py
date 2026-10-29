@@ -20,6 +20,7 @@ from a2a.types import (
     StreamResponse,
 )
 
+from lemonade_a2a.client._ssrf_transport import SSRFGuardedTransport
 from lemonade_a2a.discovery import validate_remote_url
 
 
@@ -39,14 +40,20 @@ class A2AClient:
         self.streaming = streaming
         self.timeout = timeout
         self.bearer_token = bearer_token
+        self.allow_local = allow_local
         self._http: httpx.AsyncClient | None = None
         self._sdk: Any = None
 
     async def __aenter__(self) -> Self:
         if self._sdk is None:
             headers = {"Authorization": f"Bearer {self.bearer_token}"} if self.bearer_token else {}
+            transport = SSRFGuardedTransport(allow_local=self.allow_local)
             self._http = httpx.AsyncClient(
-                timeout=self.timeout, headers=headers, follow_redirects=False, trust_env=False
+                timeout=self.timeout,
+                headers=headers,
+                follow_redirects=False,
+                trust_env=False,
+                transport=transport,
             )
             try:
                 factory = ClientFactory(

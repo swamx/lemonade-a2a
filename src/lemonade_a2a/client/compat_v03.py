@@ -11,17 +11,19 @@ from typing import Any
 
 import httpx
 
+from lemonade_a2a.client._ssrf_transport import SSRFGuardedTransport
+from lemonade_a2a.discovery import validate_remote_url
+
 
 class RemoteA2AError(RuntimeError):
     """Remote A2A invocation failed or returned an invalid response."""
 
 
 class RemoteA2AClient:
-    def __init__(self, endpoint: str, *, timeout: float = 30.0) -> None:
-        if not endpoint.startswith("https://"):
-            raise ValueError("Remote A2A endpoint must use HTTPS")
-        self.endpoint = endpoint
+    def __init__(self, endpoint: str, *, timeout: float = 30.0, allow_local: bool = False) -> None:
+        self.endpoint = validate_remote_url(endpoint, allow_local=allow_local)
         self.timeout = timeout
+        self.allow_local = allow_local
 
     async def send_message(self, parts: list[dict[str, Any]]) -> dict[str, Any]:
         """Send protocol 0.3 message parts to a trusted A2A endpoint.
@@ -44,7 +46,10 @@ class RemoteA2AClient:
                 }
             },
         }
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=False) as client:
+        transport = SSRFGuardedTransport(allow_local=self.allow_local)
+        async with httpx.AsyncClient(
+            timeout=self.timeout, follow_redirects=False, transport=transport, trust_env=False
+        ) as client:
             response = await client.post(self.endpoint, json=payload)
             response.raise_for_status()
             envelope = response.json()

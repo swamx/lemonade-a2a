@@ -39,10 +39,17 @@ an A2A Card.
 ## Error, security and retry boundaries
 
 - Fail closed on malformed URL schemes, untrusted private literal IPs and
-  unsupported agent bindings. For internet-sourced registry records, implement
-  DNS re-resolution, connection-time SSRF protections, and a host allowlist
-  before permitting untrusted registry results. The current URL validation
-  is **not** sufficient SSRF protection for arbitrary Internet inputs.
+  unsupported agent bindings. Beyond the literal-IP check at construction
+  time, `client._ssrf_transport.SSRFGuardedTransport` resolves DNS exactly
+  once per outbound request and connects to that specific, validated address
+  (never a second, later DNS lookup inside the HTTP stack) — this closes the
+  classic DNS-rebinding gap where a hostname resolves to a public address
+  during validation and to a private/internal one at actual connect time.
+  It covers both `client.sdk.A2AClient` (card resolution included, since the
+  SDK's `ClientFactory` is handed the same guarded `httpx.AsyncClient`) and
+  the temporary `client.compat_v03.RemoteA2AClient`. A host allowlist is
+  still the stronger option for truly untrusted, internet-sourced registry
+  records once dynamic (e.g. NANDA) discovery lands.
 - Set per-call timeouts; outbound HTTP redirects are disabled.
 - Pass bearer tokens through headers; never include them in recorded Agent
   Cards, log events or query strings. Additional auth schemes belong in an
