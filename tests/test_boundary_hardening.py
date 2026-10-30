@@ -75,3 +75,24 @@ async def test_card_fetch_rejects_redirect(monkeypatch):
             "https://approved.example/.well-known/agent-card.json",
             allowed_hosts=frozenset({"approved.example"}),
         )
+
+
+@pytest.mark.asyncio
+async def test_transport_rejects_non_allowlisted_host_without_dns():
+    from lemonade_a2a.client._ssrf_transport import SSRFGuardedTransport
+
+    transport = SSRFGuardedTransport(
+        allow_local=False, allowed_hosts=frozenset({"approved.example"})
+    )
+    with pytest.raises(ValueError, match="allowlist"):
+        await transport.handle_async_request(httpx.Request("GET", "https://different.example/"))
+
+
+def test_sdk_rejects_initial_hostname_not_on_allowlist():
+    from lemonade_a2a.client import A2AClient
+
+    with pytest.raises(ValueError, match="allowlist"):
+        A2AClient(
+            "https://unapproved.example",
+            allowed_hosts=frozenset({"approved.example"}),
+        )
