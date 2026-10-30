@@ -19,12 +19,17 @@ from lemonade_a2a.discovery import resolve_pinned_address
 
 
 class SSRFGuardedTransport(httpx.AsyncHTTPTransport):
-    def __init__(self, *, allow_local: bool, **kwargs: Any) -> None:
+    def __init__(
+        self, *, allow_local: bool, allowed_hosts: frozenset[str] | None = None, **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
         self._allow_local = allow_local
+        self._allowed_hosts = allowed_hosts
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         host = request.url.host
+        if self._allowed_hosts is not None and host.lower() not in self._allowed_hosts:
+            raise ValueError("Outbound hostname is not on the approved allowlist")
         pinned_ip = await resolve_pinned_address(host, allow_local=self._allow_local)
         pinned_request = httpx.Request(
             request.method,
