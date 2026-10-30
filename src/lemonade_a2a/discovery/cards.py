@@ -35,6 +35,14 @@ async def fetch_agent_card(
         card = response.json()
     if not isinstance(card, dict) or not isinstance(card.get("name"), str):
         raise TypeError("Invalid Agent Card")
+    # A2A 0.3 cards commonly advertise the primary endpoint as top-level url.
+    primary_url = card.get("url")
+    if primary_url is not None:
+        if not isinstance(primary_url, str):
+            raise TypeError("Invalid Agent Card URL")
+        validate_remote_url(primary_url, allow_local=allow_local)
+        if allowed_hosts is not None and urlsplit(primary_url).hostname not in allowed_hosts:
+            raise ValueError("Advertised endpoint is not on the approved allowlist")
     interfaces = card.get("supportedInterfaces", [])
     if interfaces and not isinstance(interfaces, list):
         raise ValueError("Invalid Agent Card interfaces")
