@@ -18,8 +18,8 @@ lemonade-a2a serve --host 127.0.0.1 --port 9100
 In a third shell:
 
 ```bash
-python scripts/demo_local_a2a.py
-python examples/a2a_client.py
+python demo/local/demo_local_a2a.py
+python demo/local/a2a_client.py
 python scripts/validate_real_lemonade.py
 ```
 
@@ -39,7 +39,7 @@ the adapter does not load models and works on CPU/GPU/NPU.
 **1:30 — Agent Card.** Open `http://127.0.0.1:9100/.well-known/agent-card.json`.
 Show identity, skills and protocol declarations.
 
-**2:15 — independent A2A client.** Run `python scripts/demo_local_a2a.py`.
+**2:15 — independent A2A client.** Run `python demo/local/demo_local_a2a.py`.
 Point out the unique message ID, JSON-RPC envelope, and returned A2A artifact/task.
 
 **3:00 — proof beyond hello world.** Show an existing streaming/cancel integration
