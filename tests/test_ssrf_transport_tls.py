@@ -25,6 +25,7 @@ import asyncio
 import datetime
 import socket
 import ssl
+from typing import Self
 
 import httpx
 import pytest
@@ -51,7 +52,7 @@ def _generate_self_signed_cert(hostname: str) -> tuple[bytes, bytes]:
     """Return (cert_pem, key_pem) for a throwaway self-signed cert for `hostname`."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hostname)])
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     builder = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -91,7 +92,7 @@ class _TLSServer:
         self._server: asyncio.base_events.Server | None = None
         self.port: int = 0
 
-    async def __aenter__(self) -> "_TLSServer":
+    async def __aenter__(self) -> Self:
         self._server = await asyncio.start_server(
             self._handle, host=self._bind_host, port=0, ssl=self._ssl_ctx
         )
