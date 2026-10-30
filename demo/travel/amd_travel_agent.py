@@ -20,6 +20,7 @@ from datetime import date
 import httpx
 
 from lemonade_a2a.client.compat_v03 import RemoteA2AClient
+from lemonade_a2a.discovery.cards import fetch_agent_card
 from lemonade_a2a.lemonade_client import LemonadeClient
 
 CARD = "https://travel.agenthaven.dev/.well-known/agent-card.json"
@@ -50,12 +51,9 @@ async def main() -> int:
         parser.error("Departure date must not be in the past")
 
     try:
-        async with httpx.AsyncClient(timeout=20, follow_redirects=False) as h:
-            card_response = await h.get(CARD)
-            card_response.raise_for_status()
-            card = card_response.json()
-        if not isinstance(card, dict):
-            raise TypeError("Remote Agent Card is not an object")
+        card = await fetch_agent_card(
+            CARD, allowed_hosts=frozenset({"travel.agenthaven.dev"})
+        )
         print("REMOTE AGENT:", card.get("name", "unnamed"))
         print("REMOTE A2A:", ENDPOINT)
         print("ADVERTISED SKILLS:", [s.get("id") for s in card.get("skills", [])])
