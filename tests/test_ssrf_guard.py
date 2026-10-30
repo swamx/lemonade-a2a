@@ -23,6 +23,40 @@ async def test_resolve_pinned_address_rejects_private_target(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_resolve_pinned_address_rejects_if_any_answer_is_private(monkeypatch):
+    """Fail closed: a mix of public and private answers must still be rejected.
+
+    Picking the first "good" address and ignoring a private one elsewhere in
+    the answer list would let an attacker who controls one DNS answer (e.g.
+    via a compromised resolver or a multi-A-record rebinding setup) hide a
+    private/internal target behind a public decoy address.
+    """
+    loop = asyncio.get_event_loop()
+
+    async def fake_getaddrinfo(host, port, *, type):
+        return [
+            (None, None, None, None, ("93.184.216.34", 0)),
+            (None, None, None, None, ("10.0.0.5", 0)),
+        ]
+
+    monkeypatch.setattr(loop, "getaddrinfo", fake_getaddrinfo)
+    with pytest.raises(SSRFError, match="non-public address"):
+        await resolve_pinned_address("mixed.example")
+
+
+@pytest.mark.asyncio
+async def test_resolve_pinned_address_rejects_invalid_answer(monkeypatch):
+    loop = asyncio.get_event_loop()
+
+    async def fake_getaddrinfo(host, port, *, type):
+        return [(None, None, None, None, ("not-an-ip", 0))]
+
+    monkeypatch.setattr(loop, "getaddrinfo", fake_getaddrinfo)
+    with pytest.raises(SSRFError, match="invalid address"):
+        await resolve_pinned_address("broken.example")
+
+
+@pytest.mark.asyncio
 async def test_resolve_pinned_address_allows_public_target(monkeypatch):
     loop = asyncio.get_event_loop()
 
