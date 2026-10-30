@@ -104,9 +104,7 @@ class _TLSServer:
         self._server.close()
         await self._server.wait_closed()
 
-    async def _handle(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             # Drain the request (headers terminated by a blank line) before replying.
             while True:
@@ -186,9 +184,10 @@ async def test_pinned_connection_rejects_mismatched_certificate(monkeypatch):
         async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
             with pytest.raises(httpx.ConnectError) as exc_info:
                 await client.get(f"https://{hostname}:{server.port}/")
-            assert "certificate" in str(exc_info.value).lower() or "hostname" in str(
-                exc_info.value
-            ).lower()
+            assert (
+                "certificate" in str(exc_info.value).lower()
+                or "hostname" in str(exc_info.value).lower()
+            )
 
 
 @pytest.mark.asyncio

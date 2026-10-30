@@ -51,9 +51,7 @@ async def main() -> int:
         parser.error("Departure date must not be in the past")
 
     try:
-        card = await fetch_agent_card(
-            CARD, allowed_hosts=frozenset({"travel.agenthaven.dev"})
-        )
+        card = await fetch_agent_card(CARD, allowed_hosts=frozenset({"travel.agenthaven.dev"}))
         print("REMOTE AGENT:", card.get("name", "unnamed"))
         print("REMOTE A2A:", ENDPOINT)
         print("ADVERTISED SKILLS:", [s.get("id") for s in card.get("skills", [])])
