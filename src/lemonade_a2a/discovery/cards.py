@@ -34,13 +34,13 @@ async def fetch_agent_card(
             raise ValueError("Agent Card exceeds size limit")
         card = response.json()
     if not isinstance(card, dict) or not isinstance(card.get("name"), str):
-        raise ValueError("Invalid Agent Card")
+        raise TypeError("Invalid Agent Card")
     interfaces = card.get("supportedInterfaces", [])
     if interfaces and not isinstance(interfaces, list):
         raise ValueError("Invalid Agent Card interfaces")
     for interface in interfaces:
         if not isinstance(interface, dict) or not isinstance(interface.get("url"), str):
-            raise ValueError("Invalid Agent Card interface")
+            raise TypeError("Invalid Agent Card interface")
         target = interface["url"]
         validate_remote_url(target, allow_local=allow_local)
         endpoint = urlsplit(target)
