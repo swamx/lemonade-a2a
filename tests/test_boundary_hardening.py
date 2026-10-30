@@ -96,3 +96,20 @@ def test_sdk_rejects_initial_hostname_not_on_allowlist():
             "https://unapproved.example",
             allowed_hosts=frozenset({"approved.example"}),
         )
+
+
+@pytest.mark.asyncio
+async def test_a2a_03_card_top_level_url_must_be_allowlisted(monkeypatch):
+    async def fake_get(self, url):
+        return httpx.Response(
+            200,
+            json={"name": "remote", "url": "https://other.example/a2a"},
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+    with pytest.raises(ValueError, match="Advertised endpoint"):
+        await fetch_agent_card(
+            "https://approved.example/.well-known/agent-card.json",
+            allowed_hosts=frozenset({"approved.example"}),
+        )
