@@ -27,9 +27,9 @@ async def fetch_agent_card(
         transport=transport, timeout=timeout, follow_redirects=False, trust_env=False
     ) as client:
         response = await client.get(card_url)
-        response.raise_for_status()
         if response.is_redirect:
             raise ValueError("Agent Card redirects are forbidden")
+        response.raise_for_status()
         if len(response.content) > 1024 * 1024:
             raise ValueError("Agent Card exceeds size limit")
         card = response.json()
