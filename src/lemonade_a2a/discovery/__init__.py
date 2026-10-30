@@ -23,7 +23,7 @@ def validate_remote_url(url: str, *, allow_local: bool = False) -> str:
     parsed = urlsplit(url)
     if parsed.scheme not in (("https", "http") if allow_local else ("https",)):
         raise ValueError("Remote URLs must use HTTPS")
-    if not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
+    if not parsed.hostname or parsed.username or parsed.password or parsed.fragment or parsed.query:
         raise ValueError("Invalid remote agent URL")
     host = parsed.hostname.lower()
     if not allow_local:
@@ -70,12 +70,16 @@ async def resolve_pinned_address(hostname: str, *, allow_local: bool = False) ->
         raise SSRFError(f"Could not resolve agent host: {hostname}") from exc
     if not infos:
         raise SSRFError(f"Could not resolve agent host: {hostname}")
-    resolved = infos[0][4][0].split("%", 1)[0]  # strip IPv6 zone id, if any
-    if not allow_local:
-        address = ipaddress.ip_address(resolved)
-        if not _is_global(address):
+    addresses = [info[4][0].split("%", 1)[0] for info in infos]
+    # Fail closed if ANY answer is private, including later fallback addresses.
+    for resolved in addresses:
+        try:
+            address = ipaddress.ip_address(resolved)
+        except ValueError as exc:
+            raise SSRFError("Agent DNS returned an invalid address") from exc
+        if not allow_local and not _is_global(address):
             raise SSRFError(f"Agent host resolves to a non-public address: {resolved}")
-    return resolved
+    return addresses[0]
 
 
 class StaticDiscovery:
