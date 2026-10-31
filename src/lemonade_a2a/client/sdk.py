@@ -35,19 +35,28 @@ class A2AClient:
         timeout: float = 30.0,
         bearer_token: str | None = None,
         allow_local: bool = False,
+        allowed_hosts: frozenset[str] | None = None,
     ) -> None:
         self.base_url = validate_remote_url(base_url, allow_local=allow_local)
         self.streaming = streaming
         self.timeout = timeout
         self.bearer_token = bearer_token
         self.allow_local = allow_local
+        self.allowed_hosts = frozenset(h.lower() for h in allowed_hosts) if allowed_hosts else None
+        if self.allowed_hosts is not None:
+            from urllib.parse import urlsplit
+
+            if urlsplit(base_url).hostname not in self.allowed_hosts:
+                raise ValueError("Agent hostname is not on the approved allowlist")
         self._http: httpx.AsyncClient | None = None
         self._sdk: Any = None
 
     async def __aenter__(self) -> Self:
         if self._sdk is None:
             headers = {"Authorization": f"Bearer {self.bearer_token}"} if self.bearer_token else {}
-            transport = SSRFGuardedTransport(allow_local=self.allow_local)
+            transport = SSRFGuardedTransport(
+                allow_local=self.allow_local, allowed_hosts=self.allowed_hosts
+            )
             self._http = httpx.AsyncClient(
                 timeout=self.timeout,
                 headers=headers,
