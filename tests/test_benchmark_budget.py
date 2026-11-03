@@ -4,7 +4,8 @@ from benchmarks.check_budget import evaluate
 
 
 def report(rss: float, growth: float | None = None) -> dict:
-    pair = lambda d, a: {"direct": {"median": d}, "a2a": {"median": a}}
+    def pair(d: float, a: float) -> dict:
+        return {"direct": {"median": d}, "a2a": {"median": a}}
     footprint = {"rss_mb": rss, "cpu_percent_idle": 0}
     if growth is not None:
         footprint["rss_growth_mb"] = growth
