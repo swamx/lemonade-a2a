@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  issues: write # scheduled canary creates a tracking issue for supported SDK regressions
 
 concurrency:
   group: canary-${{ github.ref }}
@@ -93,7 +94,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh issue create --title "Canary: lemonade-a2a fails with the newest a2a-sdk in the declared range" \
-            --body "The scheduled canary failed for \`a2a-sdk\` latest. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Pin the range below the broken release and fix, then widen it again." || true
+            --body "The scheduled canary failed for \`a2a-sdk\` latest. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Pin the range below the broken release and fix, then widen it again."
 
   otel:
     name: OpenTelemetry latest
