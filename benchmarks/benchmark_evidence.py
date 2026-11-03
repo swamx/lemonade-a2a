@@ -240,6 +240,7 @@ async def run(args: argparse.Namespace) -> dict:
             a2a.append(await a2a_stream(client, args))
         cancel = await cancellation_check(client, args)
 
+    before_load = adapter_footprint(args.a2a_pid, args.idle_seconds)
     report: dict = {
         "model": args.model,
         "workload": args.workload if args.prompt == WORKLOADS[args.workload] else "custom",
@@ -247,10 +248,15 @@ async def run(args: argparse.Namespace) -> dict:
         "prompt": args.prompt[:200],
         "runs": args.runs,
         "cancellation": cancel,
-        "adapter_footprint": adapter_footprint(args.a2a_pid, args.idle_seconds),
+        "adapter_footprint": before_load,
     }
     if args.concurrency:
         report["load"] = await load_test(args)
+        after_load = adapter_footprint(args.a2a_pid, args.idle_seconds)
+        if "rss_mb" in before_load and "rss_mb" in after_load:
+            after_load["rss_before_load_mb"] = before_load["rss_mb"]
+            after_load["rss_growth_mb"] = after_load["rss_mb"] - before_load["rss_mb"]
+        report["adapter_footprint"] = after_load
     report["tokenizer"] = getattr(args, "tokenizer", "regex")
     metrics = ["ttft_ms", "total_ms", "chunks_per_s", "output_tokens", "tokens_per_s"]
     if all("ttft_any_ms" in r for r in direct + a2a):
@@ -298,6 +304,11 @@ def to_markdown(report: dict) -> str:
     footprint = report["adapter_footprint"]
     if "rss_mb" in footprint:
         lines.append(f"| Adapter RSS (MB) | - | {footprint['rss_mb']:.1f} | - |")
+        if "rss_growth_mb" in footprint:
+            lines.append(
+                f"| Adapter RSS growth after load (MB) | - | "
+                f"{footprint['rss_growth_mb']:+.1f} | - |"
+            )
         lines.append(f"| Adapter idle CPU (%) | - | {footprint['cpu_percent_idle']:.1f} | - |")
     for level, targets in report.get("load", {}).items():
         if level == next(iter(report["load"])):

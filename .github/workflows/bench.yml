@@ -46,7 +46,20 @@ jobs:
           python -m uvicorn tests.mock_lemonade:app --host 127.0.0.1 --port 13305 > mock.log 2>&1 &
           lemonade-a2a > adapter.log 2>&1 &
           echo $! > adapter.pid
-          for _ in $(seq 40); do curl -sf http://127.0.0.1:9100/healthz && break; sleep 0.5; done
+          ready=0
+          for _ in $(seq 40); do
+            if curl -fsS http://127.0.0.1:9100/healthz >/dev/null; then ready=1; break; fi
+            if ! kill -0 "$(cat adapter.pid)" 2>/dev/null; then
+              echo "Adapter exited before readiness"; cat adapter.log; exit 1
+            fi
+            sleep 0.5
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "Adapter failed readiness after 20s"; cat adapter.log; exit 1
+          fi
+          if ! curl -fsS http://127.0.0.1:13305/v1/models >/dev/null; then
+            echo "Mock Lemonade failed model endpoint check"; cat mock.log; exit 1
+          fi
       - name: Benchmark (30 runs, load N = 1, 4, 8)
         run: |
           python benchmarks/benchmark_evidence.py --model mock \
