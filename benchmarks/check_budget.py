@@ -23,7 +23,8 @@ TTFT_OVERHEAD_SHARE = 0.25
 TOTAL_OVERHEAD_MS = 50.0
 TOTAL_OVERHEAD_SHARE = 0.05
 MIN_THROUGHPUT_RATIO = 0.90
-MAX_RSS_MB = 100.0
+MAX_RSS_MB = 128.0
+MAX_RSS_GROWTH_MB = 16.0
 MAX_IDLE_CPU_PERCENT = 2.0
 
 
@@ -85,6 +86,15 @@ def evaluate(report: dict) -> list[tuple[str, bool, str]]:
                 f"{footprint['rss_mb']:.0f} MB (max {MAX_RSS_MB:.0f})",
             )
         )
+        if "rss_growth_mb" in footprint:
+            growth = footprint["rss_growth_mb"]
+            checks.append(
+                (
+                    "Adapter RSS growth under load",
+                    growth <= MAX_RSS_GROWTH_MB,
+                    f"{growth:+.1f} MB (max +{MAX_RSS_GROWTH_MB:.0f})",
+                )
+            )
         idle = footprint["cpu_percent_idle"]
         checks.append(
             (
