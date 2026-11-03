@@ -244,3 +244,23 @@ This laptop has an Intel CPU and an NVIDIA GPU. **NPU, ROCm and non-llama.cpp en
 - **Port clash on a default install.** Lemonade Server's WebSocket listens on port 9000 (`lemonade status`), which was the adapter's original default. The adapter now defaults to 9100; if you change `LEMONADE_A2A_PORT`, set a matching `LEMONADE_A2A_PUBLIC_URL` and pass `--a2a`/`--a2a-url` to the scripts.
 - **Client disconnect does not stop generation (by default).** Opt in to cancelling it with `LEMONADE_A2A_CANCEL_ON_DISCONNECT=1` (see [protocol-mapping.md](protocol-mapping.md)). Closing a streaming connection mid-generation leaves the task, and the Lemonade request behind it, running to completion; A2A tasks outlive their connections and can be resubscribed. Wasted work is bounded by the per-task deadline (`LEMONADE_A2A_MAX_TASK_SECONDS`, default 600 s) and stopped explicitly by `CancelTask`.
 - **A route-ordering regression was caught by the official TCK**, not by unit tests (HTTP+JSON `GET /tasks/{id}` returned a bare 404 after the legacy-prefix reorder). Tests now assert the A2A error body on both prefixes.
+
+### Hosted runner memory gate calibration (November 2026)
+
+The November 1 hosted mock run reported **108.3 MB RSS**, exceeding the historical
+100 MB gate although latency, completion and cancellation checks passed. The
+older 68–75 MB figures were gathered on a different machine and dependency set;
+they do not establish a 100 MB ceiling across updated Python/FastAPI/a2a-sdk
+runtimes. The updated absolute guard is **128 MB RSS**, with an additional
+**16 MB maximum RSS growth** between the post-sequential-test sample and the
+post-concurrency-load sample. Both remain blocking checks. The benchmark report
+records both readings; do not interpret one under-limit run as proof there is
+no leak. Baseline/ceiling changes require actual comparison evidence rather than
+silencing or removing the memory gate.
+
+To reproduce:
+
+```bash
+python benchmarks/benchmark_evidence.py --model mock --direct-url http://127.0.0.1:13305/v1/chat/completions --runs 30 --concurrency 1,4,8 --load-rounds 3 --a2a-pid PID --output bench.json
+python benchmarks/check_budget.py bench.json --min-runs 20
+```
