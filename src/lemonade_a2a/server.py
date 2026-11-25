@@ -30,7 +30,8 @@ from starlette.routing import BaseRoute, Mount
 from . import __version__, builtin, compat, registry
 from .call_context import LemonadeCallContextBuilder
 from .config import Settings
-from .executor import LemonadeAgentExecutor
+from .conversations import ConversationStore
+from .executor import LemonadeAgentExecutor, accepted_media_types
 from .logging_setup import configure_logging
 from .middleware import (
     BodySizeLimitMiddleware,
@@ -104,6 +105,37 @@ def capabilities_payload(settings: Settings, compat_status: str) -> dict:
     }
 
 
+def _skills(settings: Settings) -> list[AgentSkill]:
+    modes = accepted_media_types(files=settings.accept_files, images=settings.accept_images)
+    skills = [
+        AgentSkill(
+            id="local-chat",
+            name="Local AI",
+            description="Language-model inference executed by Lemonade on local hardware.",
+            tags=["local-ai", "lemonade"],
+            examples=["Explain why local inference is useful."],
+            input_modes=modes,
+            output_modes=["text", "task-status"],
+        )
+    ]
+    if settings.marketplace:
+        skills.append(
+            AgentSkill(
+                id="marketplace-delegation",
+                name="Agent marketplace",
+                description=(
+                    "Consults specialised agents from an agent marketplace when they suit the "
+                    "request better; start a message with @<agent-id> to pick one."
+                ),
+                tags=["a2a", "delegation", "marketplace"],
+                examples=["@weather-agent What is the forecast for Austin tomorrow?"],
+                input_modes=modes,
+                output_modes=["text", "task-status"],
+            )
+        )
+    return skills
+
+
 def build_agent_card(settings: Settings) -> AgentCard:
     return AgentCard(
         name=settings.agent_name,
@@ -114,19 +146,11 @@ def build_agent_card(settings: Settings) -> AgentCard:
             push_notifications=False,
             extensions=_extensions(settings),
         ),
-        default_input_modes=["text"],
+        default_input_modes=accepted_media_types(
+            files=settings.accept_files, images=settings.accept_images
+        ),
         default_output_modes=["text", "task-status"],
-        skills=[
-            AgentSkill(
-                id="local-chat",
-                name="Local AI",
-                description="Language-model inference executed by Lemonade on local hardware.",
-                tags=["local-ai", "lemonade"],
-                examples=["Explain why local inference is useful."],
-                input_modes=["text"],
-                output_modes=["text", "task-status"],
-            )
-        ],
+        skills=_skills(settings),
         **_security(settings),
         supported_interfaces=[
             AgentInterface(
@@ -140,6 +164,54 @@ def build_agent_card(settings: Settings) -> AgentCard:
                 url=settings.public_url,
             ),
         ],
+    )
+
+
+def build_marketplace(settings: Settings):
+    """The configured agent marketplace, or ``None`` when ``LEMONADE_A2A_MARKETPLACE`` is unset."""
+    if not settings.marketplace:
+        return None
+    from .discovery.marketplace import Marketplace
+
+    return Marketplace(
+        settings.marketplace_sources,
+        allow_local=settings.marketplace_allow_local,
+        allowed_hosts=settings.marketplace_hosts or None,
+        api_key=settings.marketplace_api_key,
+        refresh_seconds=settings.marketplace_refresh_seconds,
+    )
+
+
+def build_executor(settings: Settings, client, telemetry: Telemetry) -> AgentExecutor:
+    """The Lemonade executor; with a marketplace configured, one that can delegate."""
+    options = {
+        "max_input_chars": settings.max_input_chars,
+        "max_input_parts": settings.max_input_parts,
+        "max_task_seconds": settings.max_task_seconds,
+        "max_concurrent_tasks": settings.max_concurrent_tasks,
+        "cancel_on_disconnect": settings.cancel_on_disconnect,
+        "reasoning": settings.reasoning,
+        "telemetry": telemetry,
+        "accept_files": settings.accept_files,
+        "accept_images": settings.accept_images,
+        "max_file_bytes": settings.max_file_bytes,
+        "conversations": ConversationStore(
+            settings.conversation_turns, max_contexts=settings.max_stored_tasks
+        ),
+    }
+    marketplace = build_marketplace(settings)
+    if marketplace is None:
+        return LemonadeAgentExecutor(client, **options)
+    from .delegation import MarketplaceAgentExecutor
+
+    return MarketplaceAgentExecutor(
+        client,
+        marketplace,
+        agent_name=settings.agent_name,
+        reply_mode=settings.marketplace_reply,
+        delegation_timeout=settings.delegation_timeout_seconds,
+        max_delegations=settings.max_delegations,
+        **options,
     )
 
 
@@ -180,16 +252,7 @@ def create_app(
     task_store = builtin.create_task_store(settings, telemetry)
     authenticator = builtin.create_authenticator(settings)
     compat_status = _compat_status(settings)
-    agent_executor = executor or LemonadeAgentExecutor(
-        client,
-        max_input_chars=settings.max_input_chars,
-        max_input_parts=settings.max_input_parts,
-        max_task_seconds=settings.max_task_seconds,
-        max_concurrent_tasks=settings.max_concurrent_tasks,
-        cancel_on_disconnect=settings.cancel_on_disconnect,
-        reasoning=settings.reasoning,
-        telemetry=telemetry,
-    )
+    agent_executor = executor or build_executor(settings, client, telemetry)
     request_handler = DefaultRequestHandler(
         agent_executor=agent_executor,
         task_store=task_store,

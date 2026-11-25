@@ -8,8 +8,12 @@ decoding to Lemonade-A2A.
 
 - `client/sdk.py`: public `A2AClient`; SDK card resolution, transport
   selection, message/streaming and task operations; HTTP timeouts and auth.
-- `discovery/__init__.py`: `AgentLocation` and `StaticDiscovery`;
+- `discovery/__init__.py`: `AgentLocation`, `DiscoveryProvider` and `StaticDiscovery`;
   vendor-independent alias -> base URL lookup and first-pass URL policy.
+- `discovery/marketplace.py`: `Marketplace`, reads agent listings from a marketplace
+  link or domain name and validates every card ([marketplace.md](marketplace.md)).
+- `delegation.py`: `MarketplaceAgentExecutor`, the inbound executor that consults
+  marketplace agents through `A2AClient`.
 - `client/compat_v03.py`: **temporary** Travel Merchant compatibility code.
   It is not the recommended API and must be removed once a real remote SDK
   compatibility request passes.

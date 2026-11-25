@@ -29,7 +29,7 @@ The safest default is:
 | Control | Status |
 |---|---|
 | Exposure profiles (`LEMONADE_A2A_PROFILE` = `local` / `lan` / `external`): the adapter **refuses to start** when the bind address, authentication, TLS and rate limit do not fit the profile (see [Exposure profiles](#exposure-profiles)) | Implemented |
-| Non-text parts rejected; no URL/file fetching | Implemented |
+| Non-text parts rejected by default; opt-in text files, data parts and images (`LEMONADE_A2A_FILES`, size-limited, fenced as data); no URL/file fetching | Implemented |
 | Input limits: characters (`LEMONADE_A2A_MAX_INPUT_CHARS`) and parts (`LEMONADE_A2A_MAX_INPUT_PARTS`) | Implemented |
 | Backend timeout (`LEMONADE_TIMEOUT_SECONDS`) and per-task deadline (`LEMONADE_A2A_MAX_TASK_SECONDS`) | Implemented |
 | Concurrency cap (`LEMONADE_A2A_MAX_CONCURRENT_TASKS`); excess tasks are `REJECTED` | Implemented |
@@ -90,7 +90,7 @@ A2A interoperability does not make remote content trustworthy. Prompt injection 
 
 ### SSRF and file access
 
-Remote URLs and file references are never fetched: file, URL and data parts are rejected on both bindings (tested with `file:`, cloud-metadata and path-traversal values). Fetching, and push notifications (which call back a caller-supplied URL), stay off until they pass through the policy in `src/lemonade_a2a/safe_urls.py`, which is tested ahead of time: HTTPS only by default; no credentials in the URL; only real DNS names or IP literals (so `2130706433` and `0x7f.1` cannot be smuggled to the resolver); no internal suffixes (`.local`, `.internal`, ...); **every** resolved address must be globally routable (loopback, RFC 1918, link-local including `169.254.169.254`, CGNAT, multicast and IPv4-mapped IPv6 are refused); and the caller must connect to the vetted address instead of resolving again (DNS rebinding). Size limits, redirect handling and timeouts are still required when a fetcher is added.
+Remote URLs and file references are never fetched. By default file, URL and data parts are rejected on both bindings (tested with `file:`, cloud-metadata and path-traversal values). With `LEMONADE_A2A_FILES=1`, inline text files (listed text media types, valid UTF-8, at most `LEMONADE_A2A_MAX_FILE_BYTES`) and data parts are given to the model inside a `<file>` fence that the content cannot close, images are passed only with `LEMONADE_A2A_FILE_IMAGES=1`, and a URL part reaches the model as a reference string only (it is forwarded unchanged to marketplace agents, which fetch it themselves, see [marketplace.md](marketplace.md)); the Agent Card lists exactly the accepted media types and the SDK refuses others. Fetching, and push notifications (which call back a caller-supplied URL), stay off until they pass through the policy in `src/lemonade_a2a/safe_urls.py`, which is tested ahead of time: HTTPS only by default; no credentials in the URL; only real DNS names or IP literals (so `2130706433` and `0x7f.1` cannot be smuggled to the resolver); no internal suffixes (`.local`, `.internal`, ...); **every** resolved address must be globally routable (loopback, RFC 1918, link-local including `169.254.169.254`, CGNAT, multicast and IPv4-mapped IPv6 are refused); and the caller must connect to the vetted address instead of resolving again (DNS rebinding). Size limits, redirect handling and timeouts are still required when a fetcher is added.
 
 ### Resource exhaustion
 

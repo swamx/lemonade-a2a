@@ -16,7 +16,8 @@ PROFILES = ("local", "lan", "external")
 CAPTURE_MODES = ("none", "metadata", "content")
 LOG_FORMATS = ("text", "json")
 COMPAT_MODES = ("off", "warn", "strict")
-SECRET_FIELDS = frozenset({"api_key", "api_keys", "lemonade_api_key"})
+SECRET_FIELDS = frozenset({"api_key", "api_keys", "lemonade_api_key", "marketplace_api_key"})
+MARKETPLACE_REPLY_MODES = ("compose", "relay")
 
 
 def parse_api_keys(spec: str) -> dict[str, str]:
@@ -93,6 +94,20 @@ class Settings:
     task_db: str = "lemonade-a2a-tasks.sqlite"  # file used by the sqlite task store
     authenticator: str = ""  # extension: lemonade_a2a.authenticators entry point
     telemetry_plugin: str = ""  # extension: lemonade_a2a.telemetry entry point
+    # Agent marketplace (docs/marketplace.md): consult agents listed by these links/domains.
+    marketplace: str = ""  # comma-separated marketplace links or bare domain names
+    marketplace_allow_local: bool = False  # allow http and private addresses (dev/LAN only)
+    marketplace_allowed_hosts: str = ""  # optional: only these hosts may be contacted
+    marketplace_api_key: str = field(default="", repr=False)  # sent to marketplace hosts only
+    marketplace_refresh_seconds: float = 300.0
+    marketplace_reply: str = "compose"  # compose (local model answers) | relay (remote verbatim)
+    delegation_timeout_seconds: float = 120.0  # wait for one remote agent's answer
+    max_delegations: int = 3  # remote agent calls per task (several rounds when planned)
+    # Conversations and files (docs/marketplace.md, docs/protocol-mapping.md)
+    conversation_turns: int = 10  # earlier turns per contextId given to the model; 0 = off
+    accept_files: bool = False  # accept text files, data parts and file references
+    accept_images: bool = False  # also images, sent to the model as image_url parts
+    max_file_bytes: int = 524_288  # per inline file part
 
     @property
     def credentials(self) -> dict[str, str]:
@@ -124,10 +139,18 @@ class Settings:
             "LEMONADE_A2A_MAX_STORED_TASKS": self.max_stored_tasks,
             "LEMONADE_A2A_OTEL_BUFFER": self.otel_buffer,
             "LEMONADE_A2A_OTEL_CONTENT_MAX_CHARS": self.otel_content_max_chars,
+            "LEMONADE_A2A_MARKETPLACE_REFRESH_SECONDS": self.marketplace_refresh_seconds,
+            "LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS": self.delegation_timeout_seconds,
+            "LEMONADE_A2A_MAX_DELEGATIONS": self.max_delegations,
+            "LEMONADE_A2A_MAX_FILE_BYTES": self.max_file_bytes,
         }
         for name, value in positive.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
+        if self.conversation_turns < 0:
+            raise ValueError("LEMONADE_A2A_CONVERSATION_TURNS must not be negative")
+        if self.accept_images and not self.accept_files:
+            raise ValueError("LEMONADE_A2A_FILE_IMAGES needs LEMONADE_A2A_FILES=1")
         if self.rate_limit_per_minute < 0:
             raise ValueError("LEMONADE_A2A_RATE_LIMIT_PER_MINUTE must not be negative")
         if bool(self.ssl_certfile) != bool(self.ssl_keyfile):
@@ -143,7 +166,39 @@ class Settings:
             raise ValueError("LEMONADE_A2A_REASONING must be drop or artifact")
         if self.log_format not in LOG_FORMATS:
             raise ValueError(f"LEMONADE_A2A_LOG_FORMAT must be one of {', '.join(LOG_FORMATS)}")
+        self._check_marketplace()
         self._check_profile()
+
+    def _check_marketplace(self) -> None:
+        if self.marketplace_reply not in MARKETPLACE_REPLY_MODES:
+            raise ValueError(
+                "LEMONADE_A2A_MARKETPLACE_REPLY must be one of "
+                + ", ".join(MARKETPLACE_REPLY_MODES)
+            )
+        if not self.marketplace:
+            return
+        if self.marketplace_allow_local and self.profile == "external":
+            raise ValueError(
+                "profile 'external' refuses LEMONADE_A2A_MARKETPLACE_ALLOW_LOCAL "
+                "(a listing could steer the adapter into the private network)"
+            )
+        from .discovery.marketplace import MarketplaceError, listing_candidates
+
+        for source in self.marketplace_sources:
+            try:
+                listing_candidates(source, allow_local=self.marketplace_allow_local)
+            except MarketplaceError as exc:
+                raise ValueError(f"LEMONADE_A2A_MARKETPLACE entry {source!r}: {exc}") from exc
+
+    @property
+    def marketplace_sources(self) -> list[str]:
+        return [part for part in (s.strip() for s in self.marketplace.split(",")) if part]
+
+    @property
+    def marketplace_hosts(self) -> list[str]:
+        return [
+            h for h in (s.strip().lower() for s in self.marketplace_allowed_hosts.split(",")) if h
+        ]
 
     def _check_profile(self) -> None:
         if self.profile not in PROFILES:
@@ -270,6 +325,7 @@ class Settings:
             "log_format": LOG_FORMATS,
             "compat": COMPAT_MODES,
             "reasoning": ("drop", "artifact"),
+            "marketplace_reply": MARKETPLACE_REPLY_MODES,
         }
         properties: dict[str, Any] = {}
         for f in fields(cls):
@@ -368,4 +424,16 @@ _ENV: dict[str, tuple[str, Callable[[str], Any]]] = {
     "LEMONADE_A2A_TASK_DB": ("task_db", _text),
     "LEMONADE_A2A_AUTHENTICATOR": ("authenticator", _lower),
     "LEMONADE_A2A_TELEMETRY_PLUGIN": ("telemetry_plugin", _lower),
+    "LEMONADE_A2A_MARKETPLACE": ("marketplace", _text),
+    "LEMONADE_A2A_MARKETPLACE_ALLOW_LOCAL": ("marketplace_allow_local", _flag),
+    "LEMONADE_A2A_MARKETPLACE_ALLOWED_HOSTS": ("marketplace_allowed_hosts", _text),
+    "LEMONADE_A2A_MARKETPLACE_API_KEY": ("marketplace_api_key", _text),
+    "LEMONADE_A2A_MARKETPLACE_REFRESH_SECONDS": ("marketplace_refresh_seconds", float),
+    "LEMONADE_A2A_MARKETPLACE_REPLY": ("marketplace_reply", _lower),
+    "LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS": ("delegation_timeout_seconds", float),
+    "LEMONADE_A2A_MAX_DELEGATIONS": ("max_delegations", int),
+    "LEMONADE_A2A_CONVERSATION_TURNS": ("conversation_turns", int),
+    "LEMONADE_A2A_FILES": ("accept_files", _flag),
+    "LEMONADE_A2A_FILE_IMAGES": ("accept_images", _flag),
+    "LEMONADE_A2A_MAX_FILE_BYTES": ("max_file_bytes", int),
 }

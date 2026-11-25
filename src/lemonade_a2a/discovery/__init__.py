@@ -6,6 +6,7 @@ import asyncio
 import ipaddress
 import socket
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 from urllib.parse import urlsplit
 
 
@@ -80,6 +81,13 @@ async def resolve_pinned_address(hostname: str, *, allow_local: bool = False) ->
         if not allow_local and not _is_global(address):
             raise SSRFError(f"Agent host resolves to a non-public address: {resolved}")
     return addresses[0]
+
+
+@runtime_checkable
+class DiscoveryProvider(Protocol):
+    """Anything that turns an agent alias into a location: static maps, marketplaces."""
+
+    async def resolve(self, alias: str) -> AgentLocation: ...
 
 
 class StaticDiscovery:

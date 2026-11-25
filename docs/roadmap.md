@@ -272,9 +272,9 @@ Only start this after the proposal is accepted in principle.
 These features are useful only after the core protocol surface is stable:
 
 - [ ] Multi-model Agent Cards and skills based on Lemonade capabilities.
-- [ ] Rich A2A parts for supported multimodal Lemonade endpoints (gated by the URL policy in `safe_urls.py`).
+- [~] Rich A2A parts for supported multimodal Lemonade endpoints (gated by the URL policy in `safe_urls.py`). **Partly done (experimental)**: opt-in inline text files, data parts and images (`LEMONADE_A2A_FILES`, `LEMONADE_A2A_FILE_IMAGES`); file URLs are still never fetched.
 - [ ] A2A ↔ existing Lemonade API interoperability examples.
-- [ ] Capability-aware delegation across multiple local Lemonade nodes.
+- [~] Capability-aware delegation across multiple local Lemonade nodes. **Partly done (experimental)**: agents consult agents listed by a marketplace (link, domain or DNS SRV), several per task, with multi-turn conversations and `input-required` relayed ([marketplace.md](marketplace.md)). Not yet: capability metadata from Lemonade itself, signed cards.
 - [ ] Privacy/locality policy for local and LAN agents.
 - [ ] Optional hardware/capability metadata extensions (optional, namespaced, never required; see [architecture.md](architecture.md)).
 - [ ] Quality/latency/energy benchmarking where hardware metrics are available.

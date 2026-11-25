@@ -558,6 +558,83 @@
       "since": "0.1.0",
       "verified_by": [],
       "notes": "Seen in Lemonade 2026.40.0 defaults (telemetry.trust_incoming_trace_context, default false). The adapter forwards traceparent either way."
+    },
+    {
+      "id": "adapter.marketplace",
+      "title": "Discover and consult remote A2A agents listed by an agent marketplace (link or domain name)",
+      "state": "experimental",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_MARKETPLACE",
+      "active": {
+        "setting": "marketplace"
+      },
+      "verified_by": [
+        "tests/test_marketplace.py::test_two_agents_talk_through_a_marketplace_domain",
+        "tests/test_marketplace.py::test_listing_formats_are_normalised"
+      ],
+      "notes": "No listing standard exists yet: well-known paths and common JSON shapes are accepted (docs/marketplace.md). Every request is SSRF-guarded; remote replies are fenced as untrusted data."
+    },
+    {
+      "id": "adapter.marketplace.dns_srv",
+      "title": "Find a marketplace or agent from DNS SRV records (_a2a-registry._tcp, _a2a._tcp) with an optional TXT path",
+      "state": "experimental",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_MARKETPLACE",
+      "active": {
+        "setting": "marketplace"
+      },
+      "verified_by": [
+        "tests/test_conversations_and_files.py::test_a_domain_is_found_through_its_srv_record_first",
+        "tests/test_conversations_and_files.py::test_srv_records_cannot_point_into_the_private_network"
+      ],
+      "notes": "A bare domain tries SRV first and falls back to the well-known paths; dns:<domain> uses SRV only. Targets pass the same URL and SSRF policy."
+    },
+    {
+      "id": "adapter.marketplace.multi_delegation",
+      "title": "Several marketplace agents per task, in parallel and in planned rounds",
+      "state": "experimental",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_MAX_DELEGATIONS",
+      "active": {
+        "setting": "marketplace"
+      },
+      "verified_by": [
+        "tests/test_conversations_and_files.py::test_planned_agents_run_in_rounds_within_the_budget",
+        "tests/test_conversations_and_files.py::test_mentioning_several_agents_asks_them_all_and_relays_each"
+      ]
+    },
+    {
+      "id": "adapter.conversation_memory",
+      "title": "Multi-turn conversations: earlier turns of a contextId reach the model, per caller; remote agents keep their conversation and input-required round-trips",
+      "state": "experimental",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_CONVERSATION_TURNS",
+      "active": {
+        "setting": "conversation_turns"
+      },
+      "verified_by": [
+        "tests/test_conversations_and_files.py::test_a_follow_up_in_the_same_context_sees_the_earlier_turns",
+        "tests/test_conversations_and_files.py::test_a_multi_turn_conversation_across_two_agents"
+      ],
+      "notes": "Held in memory only, bounded by turns, characters, contexts and an idle TTL; lost on restart."
+    },
+    {
+      "id": "adapter.file_parts",
+      "title": "File and data parts: text files and JSON to the model, optional images, forwarded to and returned from marketplace agents",
+      "state": "experimental",
+      "since": "0.1.0",
+      "config": "LEMONADE_A2A_FILES, LEMONADE_A2A_FILE_IMAGES, LEMONADE_A2A_MAX_FILE_BYTES",
+      "toggle": {
+        "setting": "accept_files",
+        "on": true,
+        "off": false
+      },
+      "verified_by": [
+        "tests/test_conversations_and_files.py::test_text_files_data_and_references_reach_the_model_fenced",
+        "tests/test_conversations_and_files.py::test_unacceptable_files_are_refused",
+        "tests/test_conversations_and_files.py::test_a_multi_turn_conversation_across_two_agents"
+      ],
+      "notes": "File URLs are not fetched by the adapter: the model sees the reference and marketplace agents receive the part."
     }
   ]
 }

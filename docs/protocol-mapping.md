@@ -27,7 +27,9 @@ OpenAI-compatible message
   {"role": "user", "content": "..."}
 ```
 
-Multiple text parts are joined in order. File/Data parts require explicit adapters and are not converted implicitly.
+Multiple text parts are joined in order. File and data parts are refused unless `LEMONADE_A2A_FILES=1`; then text files (UTF-8, listed text media types) and data parts (as JSON) follow the text inside `<file name="...">` fences, images become OpenAI `image_url` content parts with `LEMONADE_A2A_FILE_IMAGES=1` (a vision model is needed), and URL parts appear as references (never fetched).
+
+Messages that share a `contextId` form a conversation: the last `LEMONADE_A2A_CONVERSATION_TURNS` turns (default 10, per authenticated caller, in memory) are sent to the model before the new message. A reply to a task in `TASK_STATE_INPUT_REQUIRED` continues that task (its history and artifacts are kept).
 
 Conversation history should preserve A2A ordering and roles where they can be represented faithfully by the configured Lemonade model API.
 
