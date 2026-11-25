@@ -55,8 +55,8 @@ def _is_global(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return address.is_global
 
 
-async def resolve_pinned_address(hostname: str, *, allow_local: bool = False) -> str:
-    """Resolve `hostname` once and return a single validated IP literal to connect to.
+async def resolve_pinned_addresses(hostname: str, *, allow_local: bool = False) -> list[str]:
+    """Resolve `hostname` once and return its validated IP literals, in resolver order.
 
     Resolving exactly once and pinning the connection to that address (rather
     than letting the HTTP stack re-resolve DNS at connect time) closes the
@@ -80,7 +80,12 @@ async def resolve_pinned_address(hostname: str, *, allow_local: bool = False) ->
             raise SSRFError("Agent DNS returned an invalid address") from exc
         if not allow_local and not _is_global(address):
             raise SSRFError(f"Agent host resolves to a non-public address: {resolved}")
-    return addresses[0]
+    return list(dict.fromkeys(addresses))  # every answer vetted; resolver order, no repeats
+
+
+async def resolve_pinned_address(hostname: str, *, allow_local: bool = False) -> str:
+    """The first vetted address of ``hostname`` (see :func:`resolve_pinned_addresses`)."""
+    return (await resolve_pinned_addresses(hostname, allow_local=allow_local))[0]
 
 
 @runtime_checkable

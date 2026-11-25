@@ -227,3 +227,32 @@ async def test_redirect_is_not_auto_followed(monkeypatch):
             response = await client.get(f"https://{hostname}:{server.port}/")
             assert response.status_code == 302
             assert response.headers["location"] == "https://example.invalid/elsewhere"
+
+
+@pytest.mark.asyncio
+async def test_transport_falls_back_to_the_next_vetted_address(monkeypatch):
+    """``localhost`` often resolves to ``::1`` first while servers listen on 127.0.0.1 only."""
+    from fastapi import FastAPI
+
+    from lemonade_a2a.client import _ssrf_transport
+    from tests.live import free_port, serve
+
+    app = FastAPI()
+
+    @app.get("/ping")
+    async def ping() -> dict:
+        return {"ok": True}
+
+    port, closed = free_port(), free_port()
+
+    async def two_answers(host, *, allow_local):
+        return ["127.0.0.2", "127.0.0.1"]  # nothing listens on 127.0.0.2:<port>
+
+    monkeypatch.setattr(_ssrf_transport, "resolve_pinned_addresses", two_answers)
+    transport = _ssrf_transport.SSRFGuardedTransport(allow_local=True)
+    with serve(app, port):
+        async with httpx.AsyncClient(transport=transport) as client:
+            response = await client.get(f"http://localhost:{port}/ping")
+            assert response.json() == {"ok": True}
+            with pytest.raises(httpx.ConnectError):
+                await client.get(f"http://localhost:{closed}/ping")
