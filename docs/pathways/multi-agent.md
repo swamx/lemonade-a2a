@@ -287,6 +287,8 @@ here: `localhost` setups skip SRV. Details: [DNS SRV discovery](../marketplace.m
 | `ConnectError` for an agent in the listing | The agent is not running, or its card advertises an address it does not listen on (`--public-url`) |
 | `Media type ... is not supported` | The receiving agent was started without `LEMONADE_A2A_FILES=1`, or the type is not in its card |
 | The coordinator never delegates | Its model did not produce the planning JSON. Use `@mentions`, a larger model, or `relay` mode. |
+| The coordinator asks the wrong agent, or the answer contains `<agent_reply>` tags | A small planner model (seen with 1.7B; a 4B model got all checks right). Use a larger model for the coordinator, `@mentions`, or `--marketplace-reply relay`. |
+| An agent "could not be reached" although it is running | On one machine, Lemonade generates one answer at a time, so parallel delegations queue. Raise `LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS`, or ask fewer agents at once (`LEMONADE_A2A_MAX_DELEGATIONS`). |
 | `profile 'local' listens on loopback only` | You set `--host 0.0.0.0`. Pick `--profile lan` with API keys (step 9). |
 
 ## Where next

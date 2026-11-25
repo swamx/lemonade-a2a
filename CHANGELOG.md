@@ -17,6 +17,7 @@ Agents served by the adapter can now find other A2A agents through an agent mark
 
 ### Fixed
 
+- A delegated call used the marketplace's 20 s listing timeout as its HTTP timeout, so a remote agent that took longer (for example queued behind other calls on a single-model Lemonade) was reported as unreachable well before `LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS`. The HTTP timeout now covers the whole wait. Found on a real model.
 - Outbound connections to a host with several addresses now try the next vetted address when one refuses the connection. `localhost` often resolves to `::1` first while agents listen on `127.0.0.1`, which made agents on one machine unreachable from each other.
 - A reply to a task in `input-required` continues that task. The executor used to publish a fresh `SUBMITTED` task, which overwrote the stored history and artifacts.
 - `serve --port N` without `--public-url` advertises `http://localhost:N` in the card (it advertised the default port).
@@ -27,7 +28,14 @@ Agents served by the adapter can now find other A2A agents through an agent mark
 - Coverage 96.9%. The new end-to-end tests run real agents over sockets: delegation through a marketplace domain, an `input-required` round trip between two agents, files in both directions, and the localhost address fallback.
 - The [multi-agent pathway](docs/pathways/multi-agent.md) was run command by command against the mock Lemonade server.
 - The CI jobs on the pull request passed: Python 3.11-3.13, a2a-sdk 1.2.0 / latest / unbounded, the official TCK, CodeQL, bandit, pip-audit, secret scanning and dependency review.
-- **Not done for this version**: validation on a real Lemonade server (step 3 of the [release checklist](docs/releasing.md); the manifest's Lemonade 2026.40.0 entry rests on the recorded contract fixtures, which the canary ran), and use against a public marketplace or real DNS records (unit tests use fakes).
+- **Real Lemonade 2026.40.0** (release checklist step 3, 2026-11-25): `doctor --deep` PASS; `validate_real_lemonade.py` all passed (integration suite, end to end, cancellation proof, benchmark); an interleaved 30-run A/B against 0.1 shows no overhead regression; the multi-agent pathway on a real model passed 8/8 checks with Gemma-3-4B (7/8 with the 1.7B Bonsai, a routing mistake by the small model). Details: [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md).
+- **Not done**: use against a public marketplace or real DNS records (unit tests use fakes); hardware beyond this one machine.
+
+### Known limitations
+
+- Planning quality depends on the local model. A 1.7B model can send a request to the wrong agent, and small models sometimes copy the `<agent_reply>` fence tags into the answer. Prefer a 4B-class model or larger for the planner, or use `@mentions` / `relay`.
+- On one machine with one model, Lemonade runs one generation at a time, so "parallel" delegations queue. Keep `LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS` generous.
+- The TTFT overhead budget (25 ms) is close to the measured overhead on the validation machine for both 0.1 and 0.2 (14-33 ms per 30-run round).
 
 ### Upgrade notes
 

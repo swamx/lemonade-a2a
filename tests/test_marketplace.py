@@ -636,3 +636,36 @@ def test_cards_without_endpoints_or_with_bad_fields_are_rejected() -> None:
     ):
         with pytest.raises((TypeError, ValueError)):
             validate_agent_card(bad)
+
+
+async def test_a_delegated_call_may_take_as_long_as_its_wait_not_the_listing_timeout(
+    monkeypatch,
+) -> None:
+    """A blocking send lasts as long as the remote task: a 20 s listing timeout must not
+    cut off a call that is allowed to wait 120 s (seen with a real model)."""
+    mock_market(
+        monkeypatch, {"https://market.example/agents": [card("A", "https://a.example/a2a")]}
+    )
+    market = Marketplace("https://market.example/agents", timeout=20)
+    seen = {}
+
+    class Remote:
+        def __init__(self, *args, **kwargs):
+            seen.update(kwargs)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return None
+
+        async def ask(self, text, **kwargs):
+            reply = AgentReply()
+            reply.add(StreamResponse(task=Task(id="t", status=TaskStatus(state=3))))
+            return reply
+
+    monkeypatch.setattr("lemonade_a2a.client.A2AClient", Remote)
+    await market.ask("a", "hi", wait_seconds=120)
+    assert seen["timeout"] == 120
+    await market.ask("a", "hi", wait_seconds=5)
+    assert seen["timeout"] == 20

@@ -61,6 +61,17 @@ A successful validation must show:
 
 Validated on 2026-10-04 against Lemonade Server 2026.40.0 with `Bonsai-1.7B-gguf` on llama.cpp GPU and CPU. Measurements are in [benchmarks.md](benchmarks.md).
 
+**Re-validated for 0.2.0 on 2026-11-25** (same Windows machine, Lemonade Server 2026.40.0):
+
+| Check | Result |
+|---|---|
+| `lemonade-a2a doctor --deep` (`Bonsai-1.7B-gguf`) | PASS: versions tested, model found (context 32,768), streaming generation |
+| `scripts/validate_real_lemonade.py` | ALL PASSED: integration suite 6/6, end to end, cancellation proof (72 ms idle, 22.5 s queued behind a generation, 77 ms right after `CancelTask`), benchmark |
+| A/B overhead against 0.1 (`99341a0`), 2 interleaved rounds × 30 runs each | No regression. Median TTFT overhead: 0.1 +30.1 / +14.4 ms, 0.2 +16.9 / +32.6 ms. Each version failed the 25 ms TTFT budget in one round and passed in the other, so on this machine both sit near the limit and the round-to-round spread (about 15 ms) is larger than any difference between them |
+| Multi-agent pathway on a real model (planner, two specialists, a marketplace; 8 checks: marketplace listing, direct ask, `@mention`, two agents in parallel, planned delegation, a two-turn conversation, a file part) | `Gemma-3-4b-it-GGUF`: **8/8**. `Bonsai-1.7B-gguf`: 7/8; the 1.7B planner sent a question about a file to the weather agent (whose card takes no files) and repeated its invented answer |
+
+What the multi-agent run found and fixed: a delegated call was cut off after the marketplace's 20 s *listing* timeout instead of the 120 s delegation timeout. A blocking send lasts as long as the remote task, and with one model, parallel calls queue in Lemonade. With the fix the same run had 10 delegations and no errors. Observed but not changed: small models sometimes copy the `<agent_reply>` fence tags into the final answer.
+
 | Gate | Status |
 |---|---|
 | Real Lemonade + A2A `SendMessage` end to end | Done (`scripts/real_lemonade_e2e.py`) |
