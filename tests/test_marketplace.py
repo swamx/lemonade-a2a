@@ -414,7 +414,7 @@ def test_marketplace_settings_come_from_the_environment() -> None:
         {
             "LEMONADE_A2A_MARKETPLACE": "agents.example.com, https://other.example/list",
             "LEMONADE_A2A_MARKETPLACE_ALLOWED_HOSTS": "Agents.example.com",
-            "LEMONADE_A2A_MARKETPLACE_API_KEY": "secret",
+            "LEMONADE_A2A_MARKETPLACE_API_KEY": "secret",  # pragma: allowlist secret
         }
     )
     assert settings.marketplace_sources == ["agents.example.com", "https://other.example/list"]
