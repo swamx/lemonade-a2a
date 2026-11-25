@@ -8,10 +8,13 @@ Lemonade A2A turns a local inference service into an agent-facing protocol endpo
 UNTRUSTED                         TRUSTED LOCAL BOUNDARY
 A2A peer ──► A2A adapter ─────────────► Lemonade server
                  │
-                 └── validation / policy / limits
+                 ├── validation / policy / limits
+                 │
+                 └──► (opt-in) marketplace listings, DNS answers,
+                      remote agents and their replies      UNTRUSTED
 ```
 
-Agent Cards, messages, metadata, URLs, files, structured parts and artifacts received from another agent are untrusted.
+Agent Cards, messages, metadata, URLs, files, structured parts and artifacts received from another agent are untrusted. With a marketplace configured, the adapter also *calls out*: marketplace listings, DNS SRV/TXT answers, the cards they point to and every remote reply are untrusted in the same way.
 
 ## Default deployment
 
@@ -20,6 +23,7 @@ The safest default is:
 - A2A adapter bound to loopback;
 - Lemonade bound to loopback;
 - no remote file fetching;
+- no outbound calls (no marketplace configured) and no file parts;
 - no shell/tool execution;
 - bounded message/task sizes;
 - explicit opt-in before LAN/public exposure.
@@ -59,6 +63,10 @@ The safest default is:
 | `/metrics` (`LEMONADE_A2A_OTEL_PROMETHEUS`) and the capabilities endpoint (`LEMONADE_A2A_EXPOSE_CAPABILITIES`): both **off by default** and **authenticated** like every non-discovery route (version and configuration disclosure helps attackers) | Implemented |
 | Persistent tasks (`LEMONADE_A2A_TASK_STORE=sqlite`): the task database is created owner-only (0600) on POSIX; **it contains prompts and answers**, so protect and rotate it like any data store; owners stay separate; the oldest finished tasks are deleted past `LEMONADE_A2A_MAX_STORED_TASKS` | Implemented |
 | Plugins (`lemonade_a2a.*` entry points): a plugin runs with the adapter's privileges and must be trusted like any dependency; an authenticator that raises denies the request; a plugin built for another extension API version is refused | Implemented ([extending.md](extending.md)) |
+| Outbound requests (marketplace listings, cards, remote agents): one guarded transport that resolves DNS once, refuses an answer set containing any private, loopback, link-local or metadata address, connects only to the vetted addresses (the next one only if a connection is refused) and never follows redirects; listings at most 4 MiB and 200 agents, cards at most 1 MiB; `LEMONADE_A2A_MARKETPLACE_ALLOW_LOCAL` (development, LAN) is refused under `external`; optional host allowlist (`LEMONADE_A2A_MARKETPLACE_ALLOWED_HOSTS`) | Implemented ([marketplace.md](marketplace.md)) |
+| DNS SRV/TXT discovery: targets pass the same URL policy as typed links; TXT paths must be plain absolute paths; the marketplace key is never sent to a host named only by DNS | Implemented |
+| Credentials across agents: the marketplace key is sent only to the marketplace hosts the operator named; inbound API keys are never forwarded to remote agents | Implemented |
+| Conversation memory: keyed by caller identity and `contextId` (another caller reusing the id sees nothing), bounded, idle TTL, memory only; `LEMONADE_A2A_CONVERSATION_TURNS=0` disables it | Implemented |
 | Compatibility gate (`LEMONADE_A2A_COMPAT=strict`): refuses to start on an untested or broken component combination | Implemented ([upgrading.md](upgrading.md)) |
 | `support-bundle`: secrets and the home directory are redacted before anything is written; read it before sharing | Implemented |
 
@@ -88,6 +96,8 @@ Mutual TLS controls who may connect; it does not name the caller (the ASGI serve
 
 A2A interoperability does not make remote content trustworthy. Prompt injection can arrive through text, files, artifacts or delegated-agent responses. The adapter must not convert model text into privileged actions by itself.
 
+Delegation is the one place where model output drives an action: the local model's plan decides which listed agent receives which text. The action is bounded. It can only send a text message (plus the caller's own forwarded parts) to an agent on the configured marketplace, at most `LEMONADE_A2A_MAX_DELEGATIONS` times per task, through the guarded transport, and never with the caller's credentials. Agent descriptions, remote replies and file contents are length-bounded and enclosed in `<agent_reply>` / `<file>` fences that the content cannot close, and the prompts say they are data. That reduces, but does not remove, the chance that a hostile listing or reply steers the answer. Use marketplaces you trust and pin them with the host allowlist.
+
 ### SSRF and file access
 
 Remote URLs and file references are never fetched. By default file, URL and data parts are rejected on both bindings (tested with `file:`, cloud-metadata and path-traversal values). With `LEMONADE_A2A_FILES=1`, inline text files (listed text media types, valid UTF-8, at most `LEMONADE_A2A_MAX_FILE_BYTES`) and data parts are given to the model inside a `<file>` fence that the content cannot close, images are passed only with `LEMONADE_A2A_FILE_IMAGES=1`, and a URL part reaches the model as a reference string only (it is forwarded unchanged to marketplace agents, which fetch it themselves, see [marketplace.md](marketplace.md)); the Agent Card lists exactly the accepted media types and the SDK refuses others. Fetching, and push notifications (which call back a caller-supplied URL), stay off until they pass through the policy in `src/lemonade_a2a/safe_urls.py`, which is tested ahead of time: HTTPS only by default; no credentials in the URL; only real DNS names or IP literals (so `2130706433` and `0x7f.1` cannot be smuggled to the resolver); no internal suffixes (`.local`, `.internal`, ...); **every** resolved address must be globally routable (loopback, RFC 1918, link-local including `169.254.169.254`, CGNAT, multicast and IPv4-mapped IPv6 are refused); and the caller must connect to the vetted address instead of resolving again (DNS rebinding). Size limits, redirect handling and timeouts are still required when a fetcher is added.
@@ -108,9 +118,13 @@ Enforce limits for:
 
 Do not expose environment variables, local paths, backend stack traces, internal hostnames, API keys or raw exceptions through A2A errors.
 
+With delegation, the caller's request (or the model's rewording of it) and any forwarded file parts leave the machine for the chosen remote agents. That is the purpose of the feature, but it changes the locality guarantee: leave `LEMONADE_A2A_MARKETPLACE` unset where requests must stay local. Remote failures reach the caller as a short note naming the agent, not as the remote error text.
+
 ### Agent Card spoofing
 
 Discovery metadata describes capability; it does not establish identity or trust. Consumers should authenticate peers according to their deployment environment.
+
+Marketplace cards are not signature-checked yet, and plain DNS answers can be spoofed (no DNSSEC validation). A listing can therefore present any name and description; the protections are the endpoint policy above (a card cannot point at a private address), HTTPS to the advertised host, and the optional host allowlist.
 
 ### Model capability confusion
 

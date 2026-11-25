@@ -40,7 +40,7 @@ failure ("no model available"); a large download is never started implicitly.
 
 ## Feature claims
 
-The adapter's registry (`src/lemonade_a2a/spec/features.json`, 49 features, rendered to
+The adapter's registry (`src/lemonade_a2a/spec/features.json`, 54 features, rendered to
 [features.md](../features.md)) lists each feature with a state and `verified_by` evidence. Native should claim
 features by the **same ids** so that a client, `doctor`-style tooling and the compatibility manifest speak one
 vocabulary.

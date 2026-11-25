@@ -12,15 +12,15 @@ lemonade-a2a doctor
 
 `doctor` compares what is installed and reachable with what the project **tested**
 (`src/lemonade_a2a/spec/compat.json`, generated from CI results) and what each feature **needs**
-([features.md](features.md)). Example after pulling an SDK release newer than the ones the manifest lists (a hypothetical 1.2.3 here):
+([features.md](features.md)). Example after pulling an SDK release newer than the ones the manifest lists (a hypothetical 1.3.9 here):
 
 ```text
 Installed components
   [ ok ] Python version: Python 3.11.7
-  [ ok ] lemonade-a2a version: lemonade-a2a 0.1.0
-  [warn] a2a-sdk: a2a-sdk 1.2.3 is inside the declared range >=1.2.0,<1.3 but was not tested (tested: 1.2.0, 1.2.1, 1.2.2)
+  [ ok ] lemonade-a2a version: lemonade-a2a 0.2.0
+  [warn] a2a-sdk: a2a-sdk 1.3.9 is inside the declared range >=1.2.0,<1.4 but was not tested (tested: 1.2.0, 1.2.3, 1.3.1)
          next: Run `lemonade-a2a doctor --deep` and the TCK, or pin a tested version.
-  [ ok ] Feature registry: 49 features
+  [ ok ] Feature registry: 54 features
   [ ok ] Configuration: profile local
 ```
 
@@ -37,6 +37,28 @@ streaming generation against Lemonade; `--adapter-url URL` also checks a running
 Card against the registry; `--sdk-gap` lists what the installed SDK offers that the adapter does not
 use; `--json` for tools.
 
+## From 0.1 to 0.2
+
+0.2 adds agent marketplaces, delegation, conversations and file parts ([CHANGELOG](../CHANGELOG.md),
+[marketplace.md](marketplace.md)). Most of it is off until you configure it. What changes for an
+existing deployment:
+
+| Change | Effect | To keep 0.1 behaviour |
+|---|---|---|
+| Conversation memory is on (`LEMONADE_A2A_CONVERSATION_TURNS=10`) | Messages that reuse a `contextId` reach the model with up to 10 earlier turns of the same caller. Prompts are held in memory (bounded, idle TTL one hour). | `LEMONADE_A2A_CONVERSATION_TURNS=0` |
+| A reply to an `input-required` task continues it | The task keeps its history and artifacts; 0.1 overwrote them with a fresh `SUBMITTED` task. | Start a new task instead of replying to the old one |
+| `serve --port N` advertises `http://localhost:N` | The card's URL follows the port unless `--public-url` / `LEMONADE_A2A_PUBLIC_URL` is set | Set the public URL explicitly |
+| New dependency `dnspython` | Installed with the package (pure Python) | Nothing to do |
+| `fetch_agent_card` needs an endpoint in the card | A card with neither `url` nor `supportedInterfaces` is rejected | Nothing to do (such a card was unusable anyway) |
+| `A2AClient` also negotiates HTTP+JSON | A remote card that lists HTTP+JSON first is called over HTTP+JSON | Nothing to do |
+
+New settings, all off or harmless by default: `LEMONADE_A2A_MARKETPLACE` and the other
+`LEMONADE_A2A_MARKETPLACE_*` settings, `LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS`,
+`LEMONADE_A2A_MAX_DELEGATIONS`, `LEMONADE_A2A_FILES`, `LEMONADE_A2A_FILE_IMAGES` and
+`LEMONADE_A2A_MAX_FILE_BYTES`. Run `lemonade-a2a config show` to see their values and
+`lemonade-a2a capabilities --all` to see the new registry entries (`adapter.marketplace*`,
+`adapter.conversation_memory`, `adapter.file_parts`).
+
 ## Pinning, warning or refusing
 
 `LEMONADE_A2A_COMPAT` decides what the adapter itself does at startup, with the same local checks:
@@ -51,8 +73,8 @@ The result is exported as the `lemonade_a2a_compat_status` metric (0 pass, 1 war
 
 ## What "supported" means
 
-* **The declared range.** `pyproject.toml` pins `a2a-sdk>=1.2.0,<1.3`. pip will not install an SDK
-  outside it, so `pip install -U a2a-sdk` stays on the newest 1.2.x. That is the safe default.
+* **The declared range.** `pyproject.toml` pins `a2a-sdk>=1.2.0,<1.4`. pip will not install an SDK
+  outside it, so `pip install -U a2a-sdk` stays on the newest 1.3.x. That is the safe default.
 * **Tested versions.** The manifest lists the SDK versions the canary ran green. A version inside the
   declared range but not in that list is *probably* fine and reported as a warning until the canary
   has covered it.

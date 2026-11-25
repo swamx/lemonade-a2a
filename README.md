@@ -89,13 +89,14 @@ Validated so far (details: [roadmap](docs/roadmap.md), [benchmarks](docs/benchma
 - **a compatibility specification you can run**: `lemonade-a2a doctor` cross-validates the installed `a2a-sdk`, `lemonade-a2a` and Lemonade after an upgrade against a generated manifest and a [feature registry](docs/features.md); `strict`/`warn` startup modes, feature flags, layered config, a support bundle, and a weekly canary against the lowest, latest and pre-release SDK ([specification](docs/specification.md), [upgrading](docs/upgrading.md));
 - **OpenTelemetry observability**: opt-in traces, metrics and logs with standard `OTEL_*` configuration, private by default (prompts are never exported unless you opt in), a measured overhead budget, and a ready dashboard and alerts ([observability](docs/observability.md));
 - an **extension API** (backends, task stores, authenticators, telemetry) with a persistent SQLite task store as the reference plugin ([extending](docs/extending.md));
+- **agents that talk to agents** (new in 0.2, experimental): discovery through an agent marketplace given as a link, a domain or DNS SRV records; several delegations per task in parallel and in rounds; multi-turn conversations with `input-required` relayed between agents; opt-in file parts. Tested with real agents over sockets ([marketplace](docs/marketplace.md), [pathway](docs/pathways/multi-agent.md));
 - reasoning models and backend errors handled honestly: thinking is dropped (or opt-in streamed as a separate artifact), and an error Lemonade reports *inside* a 200 stream fails the task instead of completing it empty;
 - the **official A2A TCK** against the protocol surface: 157 passed, 0 failed, 4 expected-fail (SHOULD), the rest skipped for capabilities not declared (see [conformance](docs/conformance.md) for scope);
 - **independent clients** (A2A CLI, and the JavaScript, Go, .NET and Java SDKs, plus the Inspector's validators) pass over JSON-RPC and HTTP+JSON, on the mock and on real Lemonade ([interoperability](docs/interoperability.md));
 - CI on Python 3.11-3.13 (ruff, ruff format, pytest) plus a deterministic mock-Lemonade end-to-end job;
 - a **real Lemonade 2026.40.0** setup on llama.cpp CUDA, Vulkan and CPU with a 1.7B and a 4B model: the validator and an opt-in pytest suite pass, A2A adds roughly 5-15 ms TTFT within a defined overhead budget on those models (a 12B model on CUDA was over budget, likely noise, and is only partly measured), and concurrent load (up to 8) shows no adapter-added cost (throughput is bounded by the backend).
 
-Not yet done: ITK (it tests SDKs against each other, so it does not apply to a standalone adapter), NPU/ROCm/Metal and non-llama.cpp backends (no hardware available so far), OAuth/OIDC inside the adapter (by decision, done at a gateway), URL/file fetching (disabled; its safety policy is written and tested first). The next milestone is cross-backend evidence on AMD hardware and the upstream-native design.
+Not yet done: ITK (it tests SDKs against each other, so it does not apply to a standalone adapter), NPU/ROCm/Metal and non-llama.cpp backends (no hardware available so far), OAuth/OIDC inside the adapter (by decision, done at a gateway), fetching file URLs (file parts are opt-in, but URLs are passed on, never fetched; the safety policy is written and tested first), signed Agent Cards, and tracing of outbound agent calls. The next milestone is cross-backend evidence on AMD hardware and the upstream-native design.
 
 ## North-star developer experience
 
@@ -128,7 +129,9 @@ The exact CLI and paths above are design targets, not claims about current upstr
 
 ## Quick start
 
-> Pre-alpha reference implementation. Pinning and API details may change while A2A v1 integration is validated.
+> Pre-alpha reference implementation (0.2.0). Pinning and API details may change while A2A v1 integration is validated.
+>
+> **New here?** The [pathways](docs/pathways/README.md) are guided, step-by-step routes. [Multi-agent systems with a marketplace](docs/pathways/multi-agent.md) takes you from one agent to several agents that delegate to each other, without hardware if you like.
 
 ```bash
 python -m venv .venv
@@ -153,7 +156,7 @@ The adapter expects a running Lemonade server exposing an OpenAI-compatible endp
 
 ### Agents that talk to other agents (marketplaces)
 
-Point an agent at an agent marketplace by its link or domain name and it can consult the agents listed there over A2A (experimental, see [docs/marketplace.md](docs/marketplace.md)):
+Point an agent at an agent marketplace by its link or domain name and it can consult the agents listed there over A2A (experimental; walk-through in the [multi-agent pathway](docs/pathways/multi-agent.md), reference in [docs/marketplace.md](docs/marketplace.md)):
 
 ```bash
 lemonade-a2a agents list agents.example.com                       # what is on offer
@@ -270,6 +273,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 
 ## Documentation
 
+- [Pathways](docs/pathways/README.md): guided routes, starting with [multi-agent systems](docs/pathways/multi-agent.md)
 - [Architecture](docs/architecture.md)
 - [Protocol mapping](docs/protocol-mapping.md)
 - [Security](docs/security.md)
@@ -286,7 +290,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 
 ## Status
 
-**Experimental / pre-alpha.** The protocol surface passes the official TCK, the integration is validated against a deterministic mock and a real Lemonade server, and the adapter has basic resource bounds and optional auth/TLS. The project is moving into AMD-hardware evidence, interoperability testing and upstream-native design.
+**Experimental / pre-alpha (0.2.0, not yet released).** The protocol surface passes the official TCK, the integration is validated against a deterministic mock and a real Lemonade server, and the adapter has basic resource bounds and optional auth/TLS. The project is moving into AMD-hardware evidence, interoperability testing and upstream-native design.
 
 ## License
 

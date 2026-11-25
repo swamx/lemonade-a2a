@@ -543,7 +543,12 @@ class Marketplace:
 
         target = agent if isinstance(agent, MarketplaceAgent) else await self.get(agent)
         try:
-            async with self.client(target, bearer_token=bearer_token) as remote:
+            # A non-streaming send blocks until the remote task ends, so the HTTP timeout must
+            # cover the whole wait; the listing timeout (self.timeout) would cut it short.
+            http_timeout = max(self.timeout, wait_seconds)
+            async with self.client(
+                target, bearer_token=bearer_token, timeout=http_timeout
+            ) as remote:
                 return await remote.ask(
                     text,
                     wait_seconds=wait_seconds,

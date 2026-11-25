@@ -20,7 +20,7 @@ Four things move independently:
 | Component | Moves because | How the project tracks it |
 |---|---|---|
 | A2A protocol (1.0, later 1.x) | the Linux Foundation spec evolves | the official TCK, pinned in `tck.yml`, two runs enforced in CI |
-| `a2a-sdk` (Python) | releases on PyPI | declared range `>=1.2.0,<1.3` plus a **canary matrix** ([canary.yml](../.github/workflows/canary.yml)) |
+| `a2a-sdk` (Python) | releases on PyPI | declared range `>=1.2.0,<1.4` plus a **canary matrix** ([canary.yml](../.github/workflows/canary.yml)) |
 | Lemonade Server | releases, new backends and endpoints | **recorded streams per version** ([tests/contract](../tests/contract)) and `doctor` probes |
 | `lemonade-a2a` | this project | semantic versioning ([upgrading.md](upgrading.md#versioning-policy)) |
 
@@ -56,7 +56,7 @@ One machine-readable file shipped in the package, [`features.json`](../src/lemon
 
 ## 5. Commands
 
-All are local and read-only and make no network calls except to the Lemonade and adapter URLs you configure. Human-readable by default; `--json` for tools. `lemonade-a2a` with no command, or with only flags, means `serve`.
+All except `agents` and `serve` are local and read-only and make no network calls except to the Lemonade and adapter URLs you configure; `agents` contacts the marketplace and agents you name, through the SSRF-guarded transport. Human-readable by default; `--json` for tools. `lemonade-a2a` with no command, or with only flags, means `serve`.
 
 | Command | Does |
 |---|---|
@@ -65,6 +65,7 @@ All are local and read-only and make no network calls except to the Lemonade and
 | `capabilities [--all] [--json]` | The registry resolved for *this* configuration: which features are on, which are available but off and how to switch them |
 | `config show \| validate \| schema` | Effective configuration with secrets redacted and the **source of each value** (default, file, env, cli); validation without starting; a JSON Schema of every setting |
 | `support-bundle` | One redacted zip: versions, effective config, doctor output, resolved features, manifest, Lemonade info, log tail. Secrets and the home directory are scrubbed; prompts and responses are never recorded |
+| `agents list [SOURCE]` / `agents ask AGENT MESSAGE [-m SOURCE]` | List a marketplace's agents (link, domain or `dns:<domain>`; default `LEMONADE_A2A_MARKETPLACE`), or send one message to one of them; `--allow-local` for development or LAN marketplaces ([marketplace.md](marketplace.md)) |
 | `serve` / `version` | Run the adapter; print versions |
 
 ### `doctor` checks

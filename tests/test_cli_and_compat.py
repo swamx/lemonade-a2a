@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from lemonade_a2a import cli, compat, registry, sdk_gap
+from lemonade_a2a import __version__, cli, compat, registry, sdk_gap
 from lemonade_a2a.compat import FAIL, PASS, UNKNOWN, WARN, Check
 from lemonade_a2a.config import Settings
 from lemonade_a2a.executor import LemonadeAgentExecutor
@@ -312,7 +312,12 @@ def _run(capsys, *argv: str) -> tuple[int, str, str]:
 def test_version(capsys) -> None:
     code, out, _ = _run(capsys, "version")
 
-    assert code == 0 and "lemonade-a2a 0.1.0" in out and "a2a-sdk" in out and "specification" in out
+    assert (
+        code == 0
+        and f"lemonade-a2a {__version__}" in out
+        and "a2a-sdk" in out
+        and "specification" in out
+    )
 
 
 def test_capabilities_text_and_json(capsys) -> None:
@@ -562,7 +567,7 @@ def test_capabilities_endpoint_describes_the_adapter() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["adapter"] == "0.1.0" and body["spec_version"] == "0.1"
+    assert body["adapter"] == __version__ and body["spec_version"] == "0.1"
     assert body["components"]["a2a_sdk"] and body["compat"]["mode"] == "warn"
     state = {f["id"]: f["active"] for f in body["features"]}
     assert state["adapter.cancel_on_disconnect"] is True and state["a2a.binding.grpc"] is False
