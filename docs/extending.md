@@ -86,6 +86,17 @@ through your own card customization if clients should discover it.
 A factory `(settings) -> lemonade_a2a.telemetry.Telemetry`. Build a `Telemetry(tracer=..., meter=...)`
 around your own providers. See [observability.md](observability.md).
 
+### Agent discovery (library API, not an entry point)
+
+Outbound discovery has a seam of its own, used from code rather than selected by a setting:
+`lemonade_a2a.discovery.DiscoveryProvider` is a `typing.Protocol` with one method,
+`async resolve(alias) -> AgentLocation`. `StaticDiscovery` (a fixed alias map) and
+`discovery.marketplace.Marketplace` (links, domains and DNS SRV; [marketplace.md](marketplace.md))
+implement it. A provider for another registry (for example NANDA) returns locations and leaves
+the protocol work to `lemonade_a2a.client.A2AClient`; it must not ship its own A2A client. The
+built-in delegating executor uses `Marketplace` directly, so a different provider does not plug
+into `LEMONADE_A2A_MARKETPLACE` yet.
+
 ## Versioning and failure modes
 
 * A plugin built for another extension API version is **refused at startup** with a message naming both

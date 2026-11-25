@@ -20,6 +20,8 @@ and scenario assets and instructions belong here.
 that document the `action/input` DataPart convention (including Travel Merchant).
 Avoid adding merchant-specific endpoints or booking behavior to the library.
 
-The outbound 0.3 client is an early opt-in API, not a complete multi-version
-A2A client. Do not imply 1.x interoperability before adding version negotiation
-and task lifecycle support.
+`client.compat_v03.RemoteA2AClient` is a temporary 0.3-only client for the Travel
+Merchant demo. The general outbound API is `lemonade_a2a.client.A2AClient` (the official
+SDK client: 1.x and 0.3 cards, JSON-RPC and HTTP+JSON, task polling, `input-required`)
+and `lemonade_a2a.discovery.marketplace.Marketplace`; for several local agents that
+delegate to each other, follow the [multi-agent pathway](../docs/pathways/multi-agent.md).

@@ -56,11 +56,15 @@ conformance evidence and a future native Lemonade integration path.
 
 ## Next integration milestones
 
-1. Add a `DiscoveryProvider` with static URL and NANDA implementations.
-2. Start two different agents and demonstrate agent-to-agent delegation with a
-   correlation ID and OpenTelemetry traces.
-3. Add contract tests for agent-card resolution, stale entries, SSRF protection,
-   authentication and offline fallback.
+1. ~~Add a `DiscoveryProvider` with static URL implementations.~~ Done in 0.2:
+   `DiscoveryProvider`, `StaticDiscovery` and `Marketplace` (links, domains, DNS SRV).
+   A NANDA provider is still open.
+2. ~~Start two different agents and demonstrate agent-to-agent delegation.~~ Done in
+   0.2: see the [multi-agent pathway](../../docs/pathways/multi-agent.md). Correlation
+   IDs and OpenTelemetry traces across agents are still open.
+3. Contract tests for agent-card resolution, stale entries (a failed refresh keeps the
+   last list) and SSRF protection exist in `tests/test_marketplace.py`;
+   authentication to remote agents is still open.
 4. Publish a recorded version-pinned benchmark and demo environment.
 
 Never register a local loopback URL in a public registry as though it were

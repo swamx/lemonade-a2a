@@ -40,7 +40,7 @@ Standard instruments where a standard exists; adapter-specific ones under `lemon
 | `http.server.request.duration` | histogram, s | `http.request.method`, `http.route`, `http.response.status_code` |
 | `lemonade_a2a.task.duration` | histogram, s | `state` |
 | `lemonade_a2a.task.active` | up-down counter | |
-| `lemonade_a2a.task.completed` | counter | `state` (`completed`, `failed`, `canceled`, `rejected`) |
+| `lemonade_a2a.task.completed` | counter | `state` (`completed`, `input_required`, `failed`, `canceled`, `rejected`) |
 | `lemonade_a2a.task.rejected` | counter | `reason` (`concurrency`, `rate_limit`, `auth`, `size`, `invalid`) |
 | `lemonade_a2a.stream.ttft` | histogram, s | to the first *answer* chunk (reasoning is not counted) |
 | `lemonade_a2a.stream.chunk_interval` | histogram, s | |
@@ -56,7 +56,7 @@ The adapter is a GenAI *client* of Lemonade, so it records the `gen_ai.client.*`
 
 ### Logs
 
-`LEMONADE_A2A_LOG_FORMAT=json` writes one JSON object per line with `time`, `level`, `logger`, `message`, a stable `event` name where there is one (`task.deadline`, `backend.error`, `backend.stream_error`, `backend.unreadable`, `task.disconnect`, `task.recovered`, `compat.check`), and `trace_id` / `span_id` inside a request. `OTEL_LOGS_EXPORTER=otlp|console` additionally bridges the `lemonade_a2a` logger to OpenTelemetry (the SDK's logs API is still experimental). Prompt and response text is never logged; failure logs carry exception summaries only.
+`LEMONADE_A2A_LOG_FORMAT=json` writes one JSON object per line with `time`, `level`, `logger`, `message`, a stable `event` name where there is one (`task.deadline`, `backend.error`, `backend.stream_error`, `backend.unreadable`, `task.disconnect`, `task.recovered`, `compat.check`; with a marketplace also `marketplace.problem`, `marketplace.stale`, `marketplace.unavailable`, `delegation.start` and `delegation.error`, which carry the remote agent's id as `agent`), and `trace_id` / `span_id` inside a request. `OTEL_LOGS_EXPORTER=otlp|console` additionally bridges the `lemonade_a2a` logger to OpenTelemetry (the SDK's logs API is still experimental). Prompt and response text is never logged; failure logs carry exception summaries only.
 
 ## 3. Configuration
 
@@ -134,4 +134,5 @@ The adapter depends on none of it. The example Prometheus config scrapes both se
 
 - Per-request token usage when the backend reports none (it is not estimated).
 - Linking JSON-RPC follow-up requests to the task span (the id is in the body).
+- Spans and metrics for delegation to marketplace agents. The local model's planning and compose calls appear as ordinary `lemonade.chat.stream` spans inside `a2a.task.execute`, but the outbound A2A calls have no span of their own and do not forward `traceparent` to the remote agent; the `delegation.*` log events are the record for now.
 - A native Lemonade implementation (roadmap P3) emitting the same instruments; the names are chosen to be implementation-independent so dashboards survive that move.

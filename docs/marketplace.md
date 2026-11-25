@@ -3,15 +3,18 @@
 Give a Lemonade agent the link or domain name of an agent marketplace and it can consult
 any agent listed there over A2A. Nothing else is needed: the marketplace is read, every
 listed Agent Card is fetched and validated, and the local model decides per request
-whether one of those agents should help.
+which of those agents should help.
 
-Status: **experimental** (`adapter.marketplace` in the [feature registry](features.md)).
+Status: **experimental**, new in 0.2.0 (`adapter.marketplace*`, `adapter.conversation_memory`
+and `adapter.file_parts` in the [feature registry](features.md)). This page is the reference;
+for a step-by-step walk-through on one machine, follow the
+[multi-agent pathway](pathways/multi-agent.md).
 
 ## Quick start
 
 ```bash
-pip install lemonade-a2a        # next to a running Lemonade server
-export LEMONADE_MODEL=your-model
+pip install -e .                # from a clone of this repository (not on PyPI yet)
+export LEMONADE_MODEL=your-model  # with Lemonade Server running
 
 # What does the marketplace offer?
 lemonade-a2a agents list agents.example.com

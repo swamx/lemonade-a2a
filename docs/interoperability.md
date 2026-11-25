@@ -47,3 +47,4 @@ a2a send "hello" -a http://127.0.0.1:9100 --transport rest --stream
 | Rust, Python-client and other SDKs | No toolchain exercised; the adapter itself is built on the Python SDK server side. |
 | Inspector web UI | Only its validator code was run, not the browser UI. |
 | gRPC, push notifications, extended Agent Card | Not offered by the adapter. |
+| Outbound delegation against other implementations | The 0.2 marketplace client (`A2AClient`, the official Python SDK client) is tested against this adapter over real sockets (JSON-RPC, a 1.x card, `input-required` and file parts), and its 0.3 card handling with fixtures. It has not yet been run against agents built on other SDKs or against a public marketplace. |
