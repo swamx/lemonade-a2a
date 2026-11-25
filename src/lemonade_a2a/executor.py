@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 from a2a.server.agent_execution.agent_executor import AgentExecutor
@@ -14,7 +18,9 @@ from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks.task_updater import TaskUpdater
 from a2a.types import Message, Part, Task, TaskState, TaskStatus
 from a2a.utils.errors import ContentTypeNotSupportedError, InvalidParamsError
+from google.protobuf.json_format import MessageToDict
 
+from .conversations import ConversationStore
 from .lemonade_client import (
     BackendStreamError,
     Delta,
@@ -28,6 +34,64 @@ LOG = logging.getLogger("lemonade_a2a.executor")
 ARTIFACT_NAME = "lemonade-response"
 REASONING_ARTIFACT_NAME = "lemonade-reasoning"
 REASONING_MODES = ("drop", "artifact")
+DEFAULT_MAX_FILE_BYTES = 512 * 1024
+# Files whose bytes are text: decoded and given to the model inside a <file> fence.
+TEXT_MEDIA_TYPES = (
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "text/html",
+    "text/xml",
+    "application/json",
+    "application/xml",
+    "application/yaml",
+    "application/x-yaml",
+)
+# Images go to the model as OpenAI-style image_url parts (needs a vision model).
+IMAGE_MEDIA_TYPES = ("image/png", "image/jpeg", "image/webp", "image/gif")
+
+
+def accepted_media_types(*, files: bool, images: bool) -> list[str]:
+    """Input modes for the Agent Card (the SDK refuses parts of any other media type)."""
+    modes = ["text"]
+    if files:
+        modes += [*TEXT_MEDIA_TYPES, *(IMAGE_MEDIA_TYPES if images else ())]
+    return modes
+
+
+def _fence(label: str, body: str) -> str:
+    label = re.sub(r'["<>\r\n]', "_", label)[:120]
+    body = re.sub(r"</?\s*file\b", "[file]", body, flags=re.IGNORECASE)
+    return f'<file name="{label}">\n{body}\n</file>'
+
+
+@dataclass
+class Turn:
+    """One incoming message, read and checked, plus what the task should end with."""
+
+    text: str  # the user's text, followed by any text files and data parts in <file> fences
+    images: list[str] = field(default_factory=list)  # data: URLs (LEMONADE_A2A_FILE_IMAGES)
+    parts: list[Part] = field(default_factory=list)  # file/data parts as received (to forward)
+    owner: str = ""  # authenticated caller: conversation memory is per caller
+    context_id: str = ""
+    task_id: str = ""
+    # Set while executing:
+    question: str = ""  # non-empty: the task ends INPUT_REQUIRED with this question
+    artifacts: list[tuple[str, list[Part]]] = field(default_factory=list)  # extra outputs
+
+    def user_message(self, text: str | None = None) -> dict[str, Any]:
+        content = self.text if text is None else text
+        if not self.images:
+            return {"role": "user", "content": content}
+        return {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": content},
+                *({"type": "image_url", "image_url": {"url": url}} for url in self.images),
+            ],
+        }
+
+
 DEFAULT_MAX_INPUT_CHARS = 100_000
 DEFAULT_MAX_INPUT_PARTS = 32
 DEFAULT_MAX_TASK_SECONDS = 600.0
@@ -66,6 +130,8 @@ class _Progress:
     last_chunk_at: float = 0.0
     response: list[str] = field(default_factory=list)
     response_chars: int = 0
+    answer: list[str] = field(default_factory=list)  # kept (bounded) for conversation memory
+    answer_chars: int = 0
 
 
 async def _close_reasoning_artifact(updater: TaskUpdater, progress: _Progress) -> None:
@@ -131,6 +197,10 @@ class LemonadeAgentExecutor(AgentExecutor):
         cancel_on_disconnect: bool = False,
         reasoning: str = "drop",
         telemetry: Telemetry = NOOP,
+        accept_files: bool = False,
+        accept_images: bool = False,
+        max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
+        conversations: ConversationStore | None = None,
     ) -> None:
         if reasoning not in REASONING_MODES:
             raise ValueError(f"reasoning must be one of {', '.join(REASONING_MODES)}")
@@ -142,27 +212,85 @@ class LemonadeAgentExecutor(AgentExecutor):
         self.cancel_on_disconnect = cancel_on_disconnect
         self.reasoning = reasoning
         self.telemetry = telemetry
+        self.accept_files = accept_files
+        self.accept_images = accept_images
+        self.max_file_bytes = max_file_bytes
+        # Memory is off unless a store is given (the server builds one from the settings).
+        self.conversations = (
+            ConversationStore(max_turns=0) if conversations is None else conversations
+        )
         self._active: dict[str, asyncio.Task[None]] = {}
         self._active_lock = asyncio.Lock()
 
-    def _validated_query(self, context: RequestContext, message: Message) -> str:
+    def _read_part(self, part: Part, files: list[str], images: list[str]) -> None:
+        """Add one non-text part to the turn, or refuse it."""
+        kind = part.WhichOneof("content")
+        if not self.accept_files or kind not in ("raw", "url", "data"):
+            raise ContentTypeNotSupportedError()
+        label = part.filename or part.media_type or kind
+        if kind == "data":
+            body = json.dumps(MessageToDict(part.data), ensure_ascii=False, indent=1)
+            files.append(_fence(label, body))
+            return
+        if kind == "url":
+            # Not fetched (no server-side fetching, see docs/security.md); the model sees the
+            # reference and marketplace agents receive the part itself.
+            files.append(f"[file {label!r} at {part.url}]")
+            return
+        if len(part.raw) > self.max_file_bytes:
+            raise InvalidParamsError(f"File exceeds the {self.max_file_bytes} byte limit")
+        media = part.media_type.split(";", 1)[0].strip().lower()
+        if media in IMAGE_MEDIA_TYPES:
+            if not self.accept_images:
+                raise ContentTypeNotSupportedError()
+            images.append(f"data:{media};base64,{base64.b64encode(part.raw).decode('ascii')}")
+            return
+        if media and media not in TEXT_MEDIA_TYPES:
+            raise ContentTypeNotSupportedError()
+        try:
+            files.append(_fence(label, part.raw.decode("utf-8")))
+        except UnicodeDecodeError as exc:
+            raise ContentTypeNotSupportedError() from exc
+
+    def _read_turn(self, context: RequestContext, message: Message) -> Turn:
         try:
             if len(message.parts) > self.max_input_parts:
                 raise InvalidParamsError(f"Input exceeds {self.max_input_parts} parts")
-            if any(part.WhichOneof("content") != "text" for part in message.parts):
-                raise ContentTypeNotSupportedError()
-
-            query = context.get_user_input()
-            if not query.strip():
+            texts: list[str] = []
+            files: list[str] = []
+            images: list[str] = []
+            forward: list[Part] = []
+            for part in message.parts:
+                if part.WhichOneof("content") == "text":
+                    texts.append(part.text)
+                    continue
+                self._read_part(part, files, images)
+                forward.append(part)
+            query = "\n".join(texts)
+            if not query.strip() and not files and not images:
                 raise InvalidParamsError("A2A request did not contain non-empty text input")
-            if len(query) > self.max_input_chars:
+            text = "\n\n".join(item for item in (query, *files) if item)
+            if len(text) > self.max_input_chars:
                 raise InvalidParamsError(
                     f"Input exceeds the {self.max_input_chars} character limit"
                 )
         except (InvalidParamsError, ContentTypeNotSupportedError):
             self.telemetry.rejected("invalid")
             raise
-        return query
+        call_context = getattr(context, "call_context", None)
+        user = getattr(getattr(call_context, "user", None), "user_name", "") or ""
+        return Turn(
+            text=text,
+            images=images,
+            parts=forward,
+            owner=user,
+            context_id=getattr(context, "context_id", None) or "",
+            task_id=getattr(context, "task_id", None) or "",
+        )
+
+    def _validated_query(self, context: RequestContext, message: Message) -> str:
+        """The checked input text (kept for callers of the previous API)."""
+        return self._read_turn(context, message).text
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         message = context.message
@@ -171,14 +299,14 @@ class LemonadeAgentExecutor(AgentExecutor):
         if message is None or not task_id or not context_id:
             raise InvalidParamsError("A2A request is missing message/task/context identifiers")
 
-        query = self._validated_query(context, message)
+        turn = self._read_turn(context, message)
         telemetry = self.telemetry
         with telemetry.span(
             "a2a.task.execute",
             attributes={
                 "a2a.task.id": task_id if telemetry.captures_metadata else None,
                 "a2a.context.id": context_id if telemetry.captures_metadata else None,
-                "a2a.input.chars": len(query),
+                "a2a.input.chars": len(turn.text),
             },
         ) as span:
             telemetry.remember_task(task_id, span.get_span_context())
@@ -186,9 +314,9 @@ class LemonadeAgentExecutor(AgentExecutor):
                 telemetry.event(
                     span,
                     "lemonade_a2a.prompt",
-                    content=truncate(query, telemetry.content_max_chars),
+                    content=truncate(turn.text, telemetry.content_max_chars),
                 )
-            await self._execute(context, event_queue, message, task_id, context_id, query, span)
+            await self._execute(context, event_queue, message, task_id, context_id, turn, span)
 
     async def _execute(
         self,
@@ -197,7 +325,7 @@ class LemonadeAgentExecutor(AgentExecutor):
         message: Message,
         task_id: str,
         context_id: str,
-        query: str,
+        turn: Turn,
         span,
     ) -> None:
         telemetry = self.telemetry
@@ -211,14 +339,17 @@ class LemonadeAgentExecutor(AgentExecutor):
         work_started = False
         started_at = time.perf_counter()
         try:
-            await event_queue.enqueue_event(
-                Task(
-                    id=task_id,
-                    context_id=context_id,
-                    status=TaskStatus(state=TaskState.TASK_STATE_SUBMITTED),
-                    history=[message],
+            if getattr(context, "current_task", None) is None:
+                await event_queue.enqueue_event(
+                    Task(
+                        id=task_id,
+                        context_id=context_id,
+                        status=TaskStatus(state=TaskState.TASK_STATE_SUBMITTED),
+                        history=[message],
+                    )
                 )
-            )
+            # else: a reply to this task's INPUT_REQUIRED; the SDK has already added the
+            # message to the stored task, which must keep its history and artifacts.
             updater = TaskUpdater(
                 event_queue=event_queue,
                 task_id=task_id,
@@ -241,7 +372,7 @@ class LemonadeAgentExecutor(AgentExecutor):
             progress = _Progress()
             try:
                 async with asyncio.timeout(self.max_task_seconds):
-                    await self._stream_artifact(updater, query, progress, span)
+                    await self._stream_artifact(updater, turn, progress, span)
             except TimeoutError:
                 LOG.warning(
                     "Task %s exceeded %.0fs deadline",
@@ -311,8 +442,17 @@ class LemonadeAgentExecutor(AgentExecutor):
                     "lemonade_a2a.response",
                     content="".join(progress.response)[: telemetry.content_max_chars],
                 )
-            await updater.complete()
-            outcome = "completed"
+            for name, parts in turn.artifacts:
+                await updater.add_artifact(parts=parts, name=name, last_chunk=True)
+            if turn.question:
+                await updater.requires_input(updater.new_agent_message([Part(text=turn.question)]))
+                outcome = "input_required"
+                answer = turn.question
+            else:
+                await updater.complete()
+                outcome = "completed"
+                answer = "".join(progress.answer)
+            self.conversations.record(turn.owner, turn.context_id, turn.text, answer)
         finally:
             if work_started:
                 telemetry.task_finished(outcome, time.perf_counter() - started_at)
@@ -355,8 +495,16 @@ class LemonadeAgentExecutor(AgentExecutor):
 
         return asyncio.create_task(watch()), fired
 
-    async def _deltas(self, query: str) -> AsyncIterator[Delta]:
-        messages = [{"role": "user", "content": query}]
+    def history(self, turn: Turn) -> list[dict[str, Any]]:
+        """Earlier turns of this caller's conversation (``contextId``), oldest first."""
+        return self.conversations.history(turn.owner, turn.context_id)
+
+    async def _deltas(self, turn: Turn | str) -> AsyncIterator[Delta]:
+        turn = Turn(text=turn) if isinstance(turn, str) else turn
+        async for delta in self._stream_messages([*self.history(turn), turn.user_message()]):
+            yield delta
+
+    async def _stream_messages(self, messages: list[dict[str, Any]]) -> AsyncIterator[Delta]:
         events = getattr(self.client, "stream_events", None)
         if events is not None:
             async for delta in events(messages):
@@ -368,13 +516,15 @@ class LemonadeAgentExecutor(AgentExecutor):
     async def _stream_artifact(
         self,
         updater: TaskUpdater,
-        query: str,
+        turn: Turn | str,
         progress: _Progress | None = None,
         span=None,
     ) -> None:
+        turn = Turn(text=turn) if isinstance(turn, str) else turn
         progress = progress or _Progress()
         telemetry = self.telemetry
-        async for delta in self._deltas(query):
+        keep = self.conversations.max_chars if self.conversations.max_turns > 0 else 0
+        async for delta in self._deltas(turn):
             if delta.kind == "reasoning":
                 progress.reasoning_seen = True
                 if self.reasoning == "artifact":
@@ -400,6 +550,9 @@ class LemonadeAgentExecutor(AgentExecutor):
             if telemetry.captures_content and progress.response_chars < telemetry.content_max_chars:
                 progress.response.append(delta.text)
                 progress.response_chars += len(delta.text)
+            if progress.answer_chars < keep:
+                progress.answer.append(delta.text)
+                progress.answer_chars += len(delta.text)
             await updater.add_artifact(
                 parts=[Part(text=delta.text)],
                 artifact_id=progress.artifact_id,
@@ -409,6 +562,10 @@ class LemonadeAgentExecutor(AgentExecutor):
             )
             progress.emitted = True
 
+        if not progress.emitted and turn.question:
+            # Waiting for the caller: the question travels in the INPUT_REQUIRED status.
+            await _close_reasoning_artifact(updater, progress)
+            return
         if not progress.emitted and progress.reasoning_seen:
             raise NoAnswerError
 

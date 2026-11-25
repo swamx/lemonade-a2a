@@ -151,6 +151,18 @@ lemonade-a2a support-bundle     # a redacted archive for a bug report
 
 The adapter expects a running Lemonade server exposing an OpenAI-compatible endpoint. It listens on **9100** by default because a stock Lemonade install already uses port 9000 for its WebSocket.
 
+### Agents that talk to other agents (marketplaces)
+
+Point an agent at an agent marketplace by its link or domain name and it can consult the agents listed there over A2A (experimental, see [docs/marketplace.md](docs/marketplace.md)):
+
+```bash
+lemonade-a2a agents list agents.example.com                       # what is on offer
+lemonade-a2a agents ask weather "Rain in Austin tomorrow?" -m agents.example.com
+lemonade-a2a serve --name "Trip Planner" --port 9101 --marketplace agents.example.com
+```
+
+A marketplace can also be found through DNS SRV records (`_a2a-registry._tcp.<domain>`). The local model plans which listed agents should help (several per task, in parallel and in rounds; or `@agent-a @agent-b` picks them), sends them the request and answers with their replies. Conversations continue across turns (per `contextId`, including a remote agent asking a follow-up question), and file parts can be sent and returned (`LEMONADE_A2A_FILES=1`). Every listing, card and call goes through the SSRF-guarded transport; replies are treated as untrusted data.
+
 ### Configuration
 
 | Variable | Default | Purpose |
@@ -183,6 +195,7 @@ The adapter expects a running Lemonade server exposing an OpenAI-compatible endp
 | `LEMONADE_A2A_OTEL_CAPTURE` | `none` | `none`, `metadata` (adds ids) or `content` (adds truncated prompt/response text; local use only) |
 | `LEMONADE_A2A_OTEL_PROMETHEUS` / `LEMONADE_A2A_LOG_FORMAT` | `0` / `text` | Serve an authenticated `/metrics`; `json` logs carry `trace_id` and `span_id` |
 | `LEMONADE_A2A_BACKEND` / `_AUTHENTICATOR` / `_TELEMETRY_PLUGIN` | `lemonade` / empty / empty | Select an [extension](docs/extending.md) by name |
+| `LEMONADE_A2A_MARKETPLACE` (and `_MARKETPLACE_*`, `_DELEGATION_TIMEOUT_SECONDS`) | empty (off) | Agent marketplace links or domain names to consult; see [docs/marketplace.md](docs/marketplace.md) |
 | `LEMONADE_A2A_CONFIG` | empty | A TOML file (`[lemonade_a2a]` table of setting names); environment and command-line flags override it |
 
 Every setting can also be given in a TOML file or as a command-line flag (`lemonade-a2a --config c.toml serve --port 9200`); precedence is defaults, file, environment, command line, and `lemonade-a2a config schema` prints a JSON Schema of all of them. Invalid values fail at startup. See [examples/](examples/) for an Agent Card and a client, and [docs/real-lemonade-validation.md](docs/real-lemonade-validation.md) for validating against a real Lemonade install.
@@ -262,6 +275,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 - [Security](docs/security.md)
 - [Compatibility specification](docs/specification.md), [feature registry](docs/features.md), [upgrading and versioning](docs/upgrading.md), [extending](docs/extending.md)
 - [Observability with OpenTelemetry](docs/observability.md) and the [ready-made stack](examples/observability/README.md)
+- [Agent marketplaces and agent-to-agent delegation](docs/marketplace.md)
 - [Conformance](docs/conformance.md)
 - [Interoperability](docs/interoperability.md)
 - [Real Lemonade validation](docs/real-lemonade-validation.md)

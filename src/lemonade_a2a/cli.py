@@ -39,14 +39,40 @@ def _dump(value: Any) -> None:
 # ----- settings helpers --------------------------------------------------------------
 
 
+CLI_SETTINGS = (
+    "host",
+    "port",
+    "profile",
+    "compat",
+    "features",
+    "log_format",
+    "agent_name",
+    "agent_description",
+    "model",
+    "public_url",
+    "lemonade_base_url",
+    "marketplace",
+    "marketplace_allow_local",
+    "marketplace_reply",
+)
+
+
 def _cli_overrides(args: argparse.Namespace) -> dict[str, Any]:
-    names = ("host", "port", "profile", "compat", "features", "log_format")
-    return {name: getattr(args, name) for name in names if getattr(args, name, None) is not None}
+    return {
+        name: getattr(args, name) for name in CLI_SETTINGS if getattr(args, name, None) is not None
+    }
 
 
 def _load(args: argparse.Namespace) -> tuple[Settings, dict[str, str]]:
+    overrides = _cli_overrides(args)
     try:
-        return Settings.load(config_file=args.config, overrides=_cli_overrides(args))
+        settings, sources = Settings.load(config_file=args.config, overrides=overrides)
+        if "port" in sources and "public_url" not in sources:
+            # Several agents on one machine: the card must advertise the port each one uses.
+            scheme = "https" if settings.ssl_certfile else "http"
+            overrides["public_url"] = f"{scheme}://localhost:{settings.port}"
+            settings, sources = Settings.load(config_file=args.config, overrides=overrides)
+        return settings, sources
     except (ValueError, TypeError) as exc:
         sys.stderr.write(f"configuration error: {exc}\n")
         raise SystemExit(compat.EXIT_FAIL) from exc
@@ -271,6 +297,78 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _marketplace(args: argparse.Namespace):
+    from .discovery.marketplace import Marketplace, MarketplaceError
+
+    settings, _ = _load(args)
+    source = args.source or settings.marketplace
+    if not source:
+        sys.stderr.write(
+            "no marketplace: pass a link or domain name, or set LEMONADE_A2A_MARKETPLACE\n"
+        )
+        raise SystemExit(compat.EXIT_FAIL)
+    try:
+        return Marketplace(
+            source,
+            allow_local=bool(args.allow_local or settings.marketplace_allow_local),
+            allowed_hosts=settings.marketplace_hosts or None,
+            api_key=settings.marketplace_api_key,
+            timeout=args.timeout,
+        )
+    except MarketplaceError as exc:
+        sys.stderr.write(f"marketplace error: {exc}\n")
+        raise SystemExit(compat.EXIT_FAIL) from exc
+
+
+def cmd_agents(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from .client.errors import OutboundA2AError
+
+    market = _marketplace(args)
+
+    async def run() -> int:
+        if args.action == "list":
+            agents = await market.agents()
+            if args.json:
+                _dump(
+                    {"agents": [agent.as_dict() for agent in agents], "problems": market.problems}
+                )
+                return 0
+            if not agents:
+                _emit("no agents listed")
+            for agent in agents:
+                _emit(f"{agent.id}  {agent.name}")
+                if agent.description:
+                    _emit(f"    {agent.description}")
+                for skill in agent.skills:
+                    _emit(f"    - {skill['name'] or skill['id']}: {skill['description']}")
+                _emit(f"    {agent.endpoint_url}")
+            for problem in market.problems:
+                _emit(f"[warn] {problem}")
+            return 0
+        reply = await market.ask(args.agent, args.message, wait_seconds=args.timeout)
+        if args.json:
+            _dump(
+                {
+                    "state": reply.state,
+                    "task_id": reply.task_id,
+                    "context_id": reply.context_id,
+                    "text": reply.text,
+                    "status": reply.status_text,
+                }
+            )
+        else:
+            _emit(reply.text or reply.status_text)
+        return 0
+
+    try:
+        return asyncio.run(run())
+    except (OutboundA2AError, LookupError) as exc:
+        sys.stderr.write(f"{type(exc).__name__}: {exc}\n")
+        return compat.EXIT_FAIL
+
+
 def cmd_version(_: argparse.Namespace) -> int:
     _emit(f"lemonade-a2a {__version__}")
     _emit(f"a2a-sdk {compat.installed_version('a2a-sdk') or 'not installed'}")
@@ -290,7 +388,39 @@ def build_parser() -> argparse.ArgumentParser:
     for flag in ("host", "profile", "compat", "features", "log-format"):
         serve.add_argument(f"--{flag}", dest=flag.replace("-", "_"))
     serve.add_argument("--port", type=int)
+    serve.add_argument("--name", dest="agent_name", help="agent name in the Agent Card")
+    serve.add_argument("--description", dest="agent_description", help="Agent Card description")
+    serve.add_argument("--model", help="Lemonade model id")
+    serve.add_argument("--public-url", dest="public_url", help="URL advertised in the card")
+    serve.add_argument("--lemonade-url", dest="lemonade_base_url", help="Lemonade /v1 endpoint")
+    serve.add_argument(
+        "--marketplace", help="agent marketplace links or domain names (comma-separated)"
+    )
+    serve.add_argument(
+        "--marketplace-allow-local",
+        dest="marketplace_allow_local",
+        action="store_const",
+        const=True,
+        help="allow an http or private-network marketplace (development / LAN only)",
+    )
+    serve.add_argument(
+        "--marketplace-reply", dest="marketplace_reply", choices=["compose", "relay"]
+    )
     serve.set_defaults(func=cmd_serve)
+
+    agents = sub.add_parser("agents", help="list or call the agents of an agent marketplace")
+    agents_sub = agents.add_subparsers(dest="action", required=True)
+    listing = agents_sub.add_parser("list", help="list a marketplace's agents")
+    listing.add_argument("source", nargs="?", help="marketplace link or domain name")
+    ask = agents_sub.add_parser("ask", help="send one message to a marketplace agent")
+    ask.add_argument("agent", help="agent id or name (see `agents list`)")
+    ask.add_argument("message", help="text to send")
+    ask.add_argument("-m", "--marketplace", dest="source", help="marketplace link or domain name")
+    for parser_ in (listing, ask):
+        parser_.add_argument("--allow-local", action="store_true", help="development / LAN only")
+        parser_.add_argument("--timeout", type=float, default=60.0)
+        parser_.add_argument("--json", action="store_true")
+    agents.set_defaults(func=cmd_agents)
 
     doctor = sub.add_parser("doctor", help="cross-validate versions, features and the backend")
     doctor.add_argument("--deep", action="store_true", help="also run a tiny streaming generation")
@@ -334,6 +464,7 @@ def main(argv: list[str] | None = None) -> int:
         "config",
         "support-bundle",
         "version",
+        "agents",
         "-h",
         "--help",
     }
