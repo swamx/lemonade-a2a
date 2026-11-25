@@ -59,6 +59,36 @@ def accepted_media_types(*, files: bool, images: bool) -> list[str]:
     return modes
 
 
+def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One leading system message and alternating turns, as strict chat templates require.
+
+    Some models' templates (Gemma, for one) refuse a second system message or two user
+    turns in a row, and a composed prompt (agent instructions + a caller's system prompt +
+    history) easily has both. System texts are joined, in order, into the first message;
+    consecutive text turns of the same role are joined; a turn with image parts is kept as is.
+    """
+    systems = [m["content"] for m in messages if m.get("role") == "system" and m.get("content")]
+    result: list[dict[str, Any]] = (
+        [{"role": "system", "content": "\n\n".join(str(text) for text in systems)}]
+        if systems
+        else []
+    )
+    for message in messages:
+        if message.get("role") == "system":
+            continue
+        previous = result[-1] if result else None
+        if (
+            previous is not None
+            and previous["role"] == message["role"]
+            and isinstance(previous["content"], str)
+            and isinstance(message["content"], str)
+        ):
+            previous["content"] = f"{previous['content']}\n\n{message['content']}"
+        else:
+            result.append(dict(message))
+    return result
+
+
 def _fence(label: str, body: str) -> str:
     label = re.sub(r'["<>\r\n]', "_", label)[:120]
     body = re.sub(r"</?\s*file\b", "[file]", body, flags=re.IGNORECASE)
@@ -75,6 +105,9 @@ class Turn:
     owner: str = ""  # authenticated caller: conversation memory is per caller
     context_id: str = ""
     task_id: str = ""
+    # Earlier turns supplied by the caller (OpenAI-style requests carry the whole
+    # conversation); None means "use conversation memory".
+    history: list[dict[str, Any]] | None = None
     # Set while executing:
     question: str = ""  # non-empty: the task ends INPUT_REQUIRED with this question
     artifacts: list[tuple[str, list[Part]]] = field(default_factory=list)  # extra outputs
@@ -113,6 +146,10 @@ def describe_backend_error(exc: httpx.HTTPError) -> str:
 
 class NoAnswerError(Exception):
     """The model produced reasoning but never an answer."""
+
+
+class BusyError(RuntimeError):
+    """The concurrency cap is reached."""
 
 
 @dataclass
@@ -497,7 +534,39 @@ class LemonadeAgentExecutor(AgentExecutor):
 
     def history(self, turn: Turn) -> list[dict[str, Any]]:
         """Earlier turns of this caller's conversation (``contextId``), oldest first."""
+        if turn.history is not None:
+            return list(turn.history)
         return self.conversations.history(turn.owner, turn.context_id)
+
+    async def run_turn(self, turn: Turn) -> AsyncIterator[Delta]:
+        """Stream one turn outside the A2A task machinery (the OpenAI-compatible surface).
+
+        The same bounds as a task apply: it counts against the concurrency cap (raising
+        :class:`BusyError` when full), it is cut off after ``max_task_seconds``
+        (``TimeoutError``), and server shutdown cancels it.
+        """
+        current = asyncio.current_task()
+        key = f"openai-{uuid.uuid4().hex}"
+        async with self._active_lock:
+            if len(self._active) >= self.max_concurrent_tasks:
+                self.telemetry.rejected("concurrency")
+                raise BusyError("Too many concurrent tasks; retry later.")
+            if current is not None:
+                self._active[key] = current
+        self.telemetry.task_started()
+        started, outcome = time.perf_counter(), "failed"
+        try:
+            async with asyncio.timeout(self.max_task_seconds):
+                async for delta in self._deltas(turn):
+                    yield delta
+            outcome = "input_required" if turn.question else "completed"
+        except asyncio.CancelledError:
+            outcome = "canceled"
+            raise
+        finally:
+            self.telemetry.task_finished(outcome, time.perf_counter() - started)
+            async with self._active_lock:
+                self._active.pop(key, None)
 
     async def _deltas(self, turn: Turn | str) -> AsyncIterator[Delta]:
         turn = Turn(text=turn) if isinstance(turn, str) else turn
@@ -505,6 +574,7 @@ class LemonadeAgentExecutor(AgentExecutor):
             yield delta
 
     async def _stream_messages(self, messages: list[dict[str, Any]]) -> AsyncIterator[Delta]:
+        messages = normalize_messages(messages)
         events = getattr(self.client, "stream_events", None)
         if events is not None:
             async for delta in events(messages):

@@ -7,7 +7,7 @@ in what order.
 
 | Pathway | You end with | Time |
 |---|---|---|
-| [Multi-agent systems with a marketplace](multi-agent.md) | Several local agents that find each other through a marketplace and delegate to one another, with multi-turn conversations, files and a path to production | about 45 minutes |
+| [Multi-agent systems with a marketplace](multi-agent.md) | Several local agents that find each other through a marketplace and delegate to one another, chat with them in Lemonade's UI, multi-turn conversations, files and a path to production | about 45 minutes |
 
 Each pathway can be run without hardware first, against the mock Lemonade server from the
 repository's tests, and then repeated against a real Lemonade Server.

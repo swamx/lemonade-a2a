@@ -20,7 +20,7 @@ Installed components
   [ ok ] lemonade-a2a version: lemonade-a2a 0.2.0
   [warn] a2a-sdk: a2a-sdk 1.3.9 is inside the declared range >=1.2.0,<1.4 but was not tested (tested: 1.2.0, 1.2.3, 1.3.1)
          next: Run `lemonade-a2a doctor --deep` and the TCK, or pin a tested version.
-  [ ok ] Feature registry: 54 features
+  [ ok ] Feature registry: 55 features
   [ ok ] Configuration: profile local
 ```
 
@@ -48,6 +48,7 @@ existing deployment:
 | Conversation memory is on (`LEMONADE_A2A_CONVERSATION_TURNS=10`) | Messages that reuse a `contextId` reach the model with up to 10 earlier turns of the same caller. Prompts are held in memory (bounded, idle TTL one hour). | `LEMONADE_A2A_CONVERSATION_TURNS=0` |
 | A reply to an `input-required` task continues it | The task keeps its history and artifacts; 0.1 overwrote them with a fresh `SUBMITTED` task. | Start a new task instead of replying to the old one |
 | `serve --port N` advertises `http://localhost:N` | The card's URL follows the port unless `--public-url` / `LEMONADE_A2A_PUBLIC_URL` is set | Set the public URL explicitly |
+| New OpenAI-compatible routes `/v1/models` and `/v1/chat/completions` on every agent | Same protection as the A2A routes (on loopback and unauthenticated under `local`, like A2A) | `LEMONADE_A2A_OPENAI_API=0` |
 | New dependency `dnspython` | Installed with the package (pure Python) | Nothing to do |
 | `fetch_agent_card` needs an endpoint in the card | A card with neither `url` nor `supportedInterfaces` is rejected | Nothing to do (such a card was unusable anyway) |
 | `A2AClient` also negotiates HTTP+JSON | A remote card that lists HTTP+JSON first is called over HTTP+JSON | Nothing to do |
@@ -55,7 +56,7 @@ existing deployment:
 New settings, all off or harmless by default: `LEMONADE_A2A_MARKETPLACE` and the other
 `LEMONADE_A2A_MARKETPLACE_*` settings, `LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS`,
 `LEMONADE_A2A_MAX_DELEGATIONS`, `LEMONADE_A2A_FILES`, `LEMONADE_A2A_FILE_IMAGES` and
-`LEMONADE_A2A_MAX_FILE_BYTES`. Run `lemonade-a2a config show` to see their values and
+`LEMONADE_A2A_MAX_FILE_BYTES`, and `LEMONADE_A2A_OPENAI_API` (on). Run `lemonade-a2a config show` to see their values and
 `lemonade-a2a capabilities --all` to see the new registry entries (`adapter.marketplace*`,
 `adapter.conversation_memory`, `adapter.file_parts`).
 

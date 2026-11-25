@@ -84,6 +84,7 @@ Maps Lemonade SSE deltas into A2A streaming events while preserving ordering and
 | `executor.py` | A2A `AgentExecutor`: input validation (text, opt-in file and data parts), conversation history, Task/Artifact events, `input-required`, cancellation, backend-error to `FAILED` mapping |
 | `delegation.py` | `MarketplaceAgentExecutor`: plans and runs calls to marketplace agents, multi-turn remote sessions, compose or relay |
 | `conversations.py` | `ConversationStore`: bounded per-caller conversation memory and remote-session state |
+| `openai_api.py` | OpenAI-compatible chat surface (`/v1/models`, `/v1/chat/completions`) on the same executor, so chat apps such as Lemonade's web app can talk to the agent ([lemonade-ui.md](lemonade-ui.md)) |
 | `discovery/` | `marketplace.py` (listings to validated cards), `dns.py` (SRV/TXT lookup), `cards.py` (card validation), `__init__.py` (URL policy, pinned DNS resolution, `StaticDiscovery`) |
 | `client/` | Outbound A2A: `sdk.py` (`A2AClient` over the official SDK), `models.py` (`AgentReply`), `errors.py` (typed failures), `_ssrf_transport.py` (guarded transport), `compat_v03.py` (temporary 0.3 JSON-RPC client) |
 | `lemonade_client.py` | Pooled OpenAI-compatible client (`chat`, SSE `stream`); no A2A types |

@@ -369,6 +369,69 @@ def cmd_agents(args: argparse.Namespace) -> int:
         return compat.EXIT_FAIL
 
 
+def lemonade_api_root(settings: Settings, override: str | None = None) -> str:
+    """Lemonade's management API (``.../api/v1``) from ``--lemonade`` or the backend URL."""
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(override or settings.lemonade_base_url)
+    return urlunsplit((parts.scheme, parts.netloc, "/api/v1", "", ""))
+
+
+def cmd_lemonade_ui(args: argparse.Namespace) -> int:
+    """Add this agent to Lemonade's chat UI as a "cloud" model provider, or remove it."""
+    import httpx
+
+    from .openai_api import model_id
+
+    settings, _ = _load(args)
+    root = lemonade_api_root(settings, args.lemonade)
+    provider = args.provider or model_id(settings.agent_name).replace("-", "")
+    if args.action == "remove":
+        payload: dict[str, Any] = {"backend": "cloud", "provider": provider}
+        url = f"{root}/uninstall"
+    else:
+        if not settings.openai_api:
+            sys.stderr.write("LEMONADE_A2A_OPENAI_API is off; the agent has no chat surface\n")
+            return compat.EXIT_FAIL
+        agent = (args.agent_url or settings.public_url).rstrip("/")
+        credentials = settings.credentials
+        # Lemonade only lists a provider's models when it has a key. Without auth on the
+        # agent any value works; with auth it must be one of the agent's keys.
+        key = args.api_key or (next(iter(credentials.values())) if credentials else "local")
+        payload = {
+            "backend": "cloud",
+            "provider": provider,
+            "base_url": f"{agent}/v1",
+            "api_key": key,
+            "allow_insecure_http": agent.startswith("http://"),
+        }
+        url = f"{root}/install"
+    try:
+        response = httpx.post(url, json=payload, timeout=args.timeout, trust_env=False)
+    except httpx.HTTPError as exc:
+        sys.stderr.write(f"Lemonade is not reachable at {root}: {type(exc).__name__}\n")
+        return compat.EXIT_FAIL
+    if response.status_code >= 400:
+        sys.stderr.write(f"Lemonade refused ({response.status_code}): {response.text[:300]}\n")
+        return compat.EXIT_FAIL
+    result = response.json()
+    if args.action == "remove":
+        _emit(f"removed '{provider}' from Lemonade")
+        return 0
+    found = result.get("models_discovered", 0)
+    if not found:
+        sys.stderr.write(
+            f"Lemonade registered '{provider}' but found no model at {payload['base_url']}: "
+            "is the agent running and reachable from Lemonade?\n"
+        )
+        return compat.EXIT_WARN
+    _emit(
+        f"added '{model_id(settings.agent_name)}' to Lemonade as provider '{provider}'; "
+        "pick it in the model list of Lemonade's chat"
+    )
+    return 0
+
+
 def cmd_version(_: argparse.Namespace) -> int:
     _emit(f"lemonade-a2a {__version__}")
     _emit(f"a2a-sdk {compat.installed_version('a2a-sdk') or 'not installed'}")
@@ -422,6 +485,22 @@ def build_parser() -> argparse.ArgumentParser:
         parser_.add_argument("--json", action="store_true")
     agents.set_defaults(func=cmd_agents)
 
+    ui = sub.add_parser("lemonade-ui", help="add this agent to Lemonade's chat UI, or remove it")
+    ui.add_argument("action", choices=["add", "remove"])
+    ui.add_argument("--lemonade", help="Lemonade URL (default: from LEMONADE_BASE_URL)")
+    ui.add_argument("--provider", help="provider name in Lemonade (default: from the agent name)")
+    ui.add_argument(
+        "--agent-url", help="URL Lemonade uses to reach the agent (default: public URL)"
+    )
+    ui.add_argument("--api-key", help="key Lemonade sends to the agent (default: the agent's own)")
+    ui.add_argument("--timeout", type=float, default=30.0)
+    for flag in ("host", "profile"):
+        ui.add_argument(f"--{flag}", dest=flag)
+    ui.add_argument("--port", type=int)
+    ui.add_argument("--name", dest="agent_name", help="agent name (as given to serve --name)")
+    ui.add_argument("--public-url", dest="public_url")
+    ui.set_defaults(func=cmd_lemonade_ui)
+
     doctor = sub.add_parser("doctor", help="cross-validate versions, features and the backend")
     doctor.add_argument("--deep", action="store_true", help="also run a tiny streaming generation")
     doctor.add_argument("--adapter-url", help="also check a running adapter's Agent Card")
@@ -465,6 +544,7 @@ def main(argv: list[str] | None = None) -> int:
         "support-bundle",
         "version",
         "agents",
+        "lemonade-ui",
         "-h",
         "--help",
     }

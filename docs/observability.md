@@ -56,7 +56,7 @@ The adapter is a GenAI *client* of Lemonade, so it records the `gen_ai.client.*`
 
 ### Logs
 
-`LEMONADE_A2A_LOG_FORMAT=json` writes one JSON object per line with `time`, `level`, `logger`, `message`, a stable `event` name where there is one (`task.deadline`, `backend.error`, `backend.stream_error`, `backend.unreadable`, `task.disconnect`, `task.recovered`, `compat.check`; with a marketplace also `marketplace.problem`, `marketplace.stale`, `marketplace.unavailable`, `delegation.start` and `delegation.error`, which carry the remote agent's id as `agent`), and `trace_id` / `span_id` inside a request. `OTEL_LOGS_EXPORTER=otlp|console` additionally bridges the `lemonade_a2a` logger to OpenTelemetry (the SDK's logs API is still experimental). Prompt and response text is never logged; failure logs carry exception summaries only.
+`LEMONADE_A2A_LOG_FORMAT=json` writes one JSON object per line with `time`, `level`, `logger`, `message`, a stable `event` name where there is one (`task.deadline`, `backend.error`, `backend.stream_error`, `backend.unreadable`, `task.disconnect`, `task.recovered`, `compat.check`; with a marketplace also `marketplace.problem`, `marketplace.stale`, `marketplace.unavailable`, `delegation.start` and `delegation.error`, which carry the remote agent's id as `agent`; and `openai.error` for a failed request on the OpenAI-compatible surface), and `trace_id` / `span_id` inside a request. `OTEL_LOGS_EXPORTER=otlp|console` additionally bridges the `lemonade_a2a` logger to OpenTelemetry (the SDK's logs API is still experimental). Prompt and response text is never logged; failure logs carry exception summaries only.
 
 ## 3. Configuration
 

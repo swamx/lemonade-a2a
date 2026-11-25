@@ -635,6 +635,25 @@
         "tests/test_conversations_and_files.py::test_a_multi_turn_conversation_across_two_agents"
       ],
       "notes": "File URLs are not fetched by the adapter: the model sees the reference and marketplace agents receive the part."
+    },
+    {
+      "id": "adapter.openai_api",
+      "title": "OpenAI-compatible chat surface (/v1/models, /v1/chat/completions) so chat apps, including Lemonade's web app, can talk to the agent",
+      "state": "experimental",
+      "since": "0.2.0",
+      "config": "LEMONADE_A2A_OPENAI_API",
+      "toggle": {
+        "setting": "openai_api",
+        "on": true,
+        "off": false
+      },
+      "verified_by": [
+        "tests/test_openai_api.py::test_a_completion_uses_the_whole_conversation_and_keeps_thinking_apart",
+        "tests/test_openai_api.py::test_streaming_sends_openai_chunks_and_done",
+        "tests/test_openai_api.py::test_api_keys_protect_the_surface_like_every_route",
+        "tests/test_openai_api.py::test_lemonade_ui_add_and_remove"
+      ],
+      "notes": "Register the agent in Lemonade's chat UI with `lemonade-a2a lemonade-ui add` (a Lemonade cloud provider). Validated against Lemonade Server 2026.40.0, which proxies the chat to the agent."
     }
   ]
 }

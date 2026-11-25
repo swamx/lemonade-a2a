@@ -56,7 +56,7 @@ One machine-readable file shipped in the package, [`features.json`](../src/lemon
 
 ## 5. Commands
 
-All except `agents` and `serve` are local and read-only and make no network calls except to the Lemonade and adapter URLs you configure; `agents` contacts the marketplace and agents you name, through the SSRF-guarded transport. Human-readable by default; `--json` for tools. `lemonade-a2a` with no command, or with only flags, means `serve`.
+All except `agents`, `lemonade-ui` and `serve` are local and read-only and make no network calls except to the Lemonade and adapter URLs you configure; `agents` contacts the marketplace and agents you name, through the SSRF-guarded transport. Human-readable by default; `--json` for tools. `lemonade-a2a` with no command, or with only flags, means `serve`.
 
 | Command | Does |
 |---|---|
@@ -66,6 +66,7 @@ All except `agents` and `serve` are local and read-only and make no network call
 | `config show \| validate \| schema` | Effective configuration with secrets redacted and the **source of each value** (default, file, env, cli); validation without starting; a JSON Schema of every setting |
 | `support-bundle` | One redacted zip: versions, effective config, doctor output, resolved features, manifest, Lemonade info, log tail. Secrets and the home directory are scrubbed; prompts and responses are never recorded |
 | `agents list [SOURCE]` / `agents ask AGENT MESSAGE [-m SOURCE]` | List a marketplace's agents (link, domain or `dns:<domain>`; default `LEMONADE_A2A_MARKETPLACE`), or send one message to one of them; `--allow-local` for development or LAN marketplaces ([marketplace.md](marketplace.md)) |
+| `lemonade-ui add \| remove` | Register this agent with Lemonade as a "cloud" provider (or remove it), so it appears in the model list of Lemonade's chat ([lemonade-ui.md](lemonade-ui.md)); talks to Lemonade's `/api/v1/install` and `/uninstall` |
 | `serve` / `version` | Run the adapter; print versions |
 
 ### `doctor` checks

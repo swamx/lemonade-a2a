@@ -108,6 +108,9 @@ class Settings:
     accept_files: bool = False  # accept text files, data parts and file references
     accept_images: bool = False  # also images, sent to the model as image_url parts
     max_file_bytes: int = 524_288  # per inline file part
+    # OpenAI-compatible chat surface (/v1/models, /v1/chat/completions) so chat apps such as
+    # Lemonade's web app can talk to the agent (docs/lemonade-ui.md)
+    openai_api: bool = True
 
     @property
     def credentials(self) -> dict[str, str]:
@@ -436,4 +439,5 @@ _ENV: dict[str, tuple[str, Callable[[str], Any]]] = {
     "LEMONADE_A2A_FILES": ("accept_files", _flag),
     "LEMONADE_A2A_FILE_IMAGES": ("accept_images", _flag),
     "LEMONADE_A2A_MAX_FILE_BYTES": ("max_file_bytes", int),
+    "LEMONADE_A2A_OPENAI_API": ("openai_api", _flag),
 }

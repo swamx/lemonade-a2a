@@ -1,12 +1,12 @@
 # Pathway: multi-agent systems with a marketplace
 
 **Goal:** run several Lemonade agents on one machine that find each other through an agent
-marketplace and delegate work to one another. Then add multi-turn conversations, files and
+marketplace and delegate work to one another. Chat with them from Lemonade's own UI. Then add multi-turn conversations, files and
 DNS discovery, and finish with a checklist for exposing the setup beyond your machine.
 
 **You need:** Python 3.11 or newer, Git, and either a running Lemonade Server with a model
 loaded or about two minutes to start the mock server (step 1). Everything stays on your
-machine until step 8.
+machine until step 9.
 
 **What you build:**
 
@@ -183,7 +183,25 @@ Things to know:
 - If a specialist is down, the Trip Planner still answers and says which agent could not be
   reached.
 
-## Step 6. Hold a conversation
+## Step 6. Chat with the Trip Planner in Lemonade's UI
+
+Lemonade's web app can list an agent as a model. Register the Trip Planner as a Lemonade
+"cloud" provider (the agent must be running):
+
+```bash
+lemonade-a2a lemonade-ui add --name "Trip Planner" --port 9100
+```
+
+Open Lemonade's chat (`http://localhost:13305`), choose **trip-planner** in the model list, and
+ask `@weather Will it rain in Lisbon on Saturday?` or a question of your own. The
+"Consulting marketplace agent ..." lines appear in the model's thinking, and follow-up
+questions keep the conversation.
+
+**Checkpoint:** the Trip Planner's terminal logs `delegating to marketplace agent weather` for a
+message you typed in Lemonade's chat. Details, the web-app form and limits:
+[Chat with your agents in Lemonade's UI](../lemonade-ui.md).
+
+## Step 7. Hold a conversation
 
 Messages that share a `contextId` form one conversation, and the agent remembers the last 10
 turns. From Python (save this as `talk.py` and run it with the virtual environment active):
@@ -220,7 +238,7 @@ if reply.state == "TASK_STATE_INPUT_REQUIRED":
 in memory only, and cleared after an hour idle; `LEMONADE_A2A_CONVERSATION_TURNS=0` turns it
 off.
 
-## Step 7. Send files
+## Step 8. Send files
 
 Files are off by default. Restart the Trip Planner with them on:
 
@@ -246,7 +264,7 @@ set `LEMONADE_A2A_FILE_IMAGES=1` (this needs a vision model). The file is forwar
 specialists whose card accepts its type. Files they send back arrive in `reply.files`. File
 URLs are passed on as references and never downloaded by the adapter.
 
-## Step 8. Publish the marketplace in DNS
+## Step 9. Publish the marketplace in DNS
 
 For a real domain, publish the listing over HTTPS and advertise it with an SRV record, as
 other services do:
@@ -265,7 +283,7 @@ lemonade-a2a agents list dns:example.com      # SRV records only
 as typed links, so an SRV record cannot point at a private address. Use real, public names
 here: `localhost` setups skip SRV. Details: [DNS SRV discovery](../marketplace.md#dns-srv-discovery).
 
-## Step 9. Before you go beyond one machine
+## Step 10. Before you go beyond one machine
 
 | Check | How |
 |---|---|
@@ -289,11 +307,12 @@ here: `localhost` setups skip SRV. Details: [DNS SRV discovery](../marketplace.m
 | The coordinator never delegates | Its model did not produce the planning JSON. Use `@mentions`, a larger model, or `relay` mode. |
 | The coordinator asks the wrong agent, or the answer contains `<agent_reply>` tags | A small planner model (seen with 1.7B; a 4B model got all checks right). Use a larger model for the coordinator, `@mentions`, or `--marketplace-reply relay`. |
 | An agent "could not be reached" although it is running | On one machine, Lemonade generates one answer at a time, so parallel delegations queue. Raise `LEMONADE_A2A_DELEGATION_TIMEOUT_SECONDS`, or ask fewer agents at once (`LEMONADE_A2A_MAX_DELEGATIONS`). |
-| `profile 'local' listens on loopback only` | You set `--host 0.0.0.0`. Pick `--profile lan` with API keys (step 9). |
+| `profile 'local' listens on loopback only` | You set `--host 0.0.0.0`. Pick `--profile lan` with API keys (step 10). |
 
 ## Where next
 
 - [Agent marketplaces](../marketplace.md): every listing shape, setting and security property
+- [Chat with your agents in Lemonade's UI](../lemonade-ui.md)
 - [Security model](../security.md) and [exposure profiles](../security.md#exposure-profiles)
 - [Observability](../observability.md): traces, metrics and logs
 - [Upgrading](../upgrading.md#from-01-to-02): what changed in 0.2.0

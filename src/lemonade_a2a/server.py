@@ -291,6 +291,12 @@ def create_app(
     # The card only changes with configuration, i.e. at process start.
     app.middleware("http")(add_agent_card_cache_headers(formatdate(usegmt=True)))
 
+    if settings.openai_api and hasattr(agent_executor, "run_turn"):
+        # Before the A2A routes: their catch-all /{tenant} mount would answer /v1/... itself.
+        from .openai_api import add_openai_routes
+
+        add_openai_routes(app, settings, agent_executor)
+
     if settings.expose_capabilities:
         # Registered before the A2A routes: their catch-all /{tenant} mount would shadow it.
         @app.get(CAPABILITIES_PATH, include_in_schema=False)

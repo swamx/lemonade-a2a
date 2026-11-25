@@ -166,6 +166,8 @@ lemonade-a2a serve --name "Trip Planner" --port 9101 --marketplace agents.exampl
 
 A marketplace can also be found through DNS SRV records (`_a2a-registry._tcp.<domain>`). The local model plans which listed agents should help (several per task, in parallel and in rounds; or `@agent-a @agent-b` picks them), sends them the request and answers with their replies. Conversations continue across turns (per `contextId`, including a remote agent asking a follow-up question), and file parts can be sent and returned (`LEMONADE_A2A_FILES=1`). Every listing, card and call goes through the SSRF-guarded transport; replies are treated as untrusted data.
 
+**Chat with an agent in Lemonade's own UI:** each agent also serves an OpenAI-compatible chat surface, so `lemonade-a2a lemonade-ui add --name "Trip Planner" --port 9100` registers it with Lemonade and it appears in the model list of Lemonade's chat ([docs/lemonade-ui.md](docs/lemonade-ui.md)).
+
 ### Configuration
 
 | Variable | Default | Purpose |
@@ -280,6 +282,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the tracked TODO list.
 - [Compatibility specification](docs/specification.md), [feature registry](docs/features.md), [upgrading and versioning](docs/upgrading.md), [extending](docs/extending.md)
 - [Observability with OpenTelemetry](docs/observability.md) and the [ready-made stack](examples/observability/README.md)
 - [Agent marketplaces and agent-to-agent delegation](docs/marketplace.md)
+- [Chat with your agents in Lemonade's UI](docs/lemonade-ui.md)
 - [Conformance](docs/conformance.md)
 - [Interoperability](docs/interoperability.md)
 - [Real Lemonade validation](docs/real-lemonade-validation.md)
